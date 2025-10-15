@@ -2,32 +2,51 @@ package dev.ethantmcgee.yubiauthn.model;
 
 import java.util.List;
 
-/**
- * Options for creating a new WebAuthn credential.
- * This represents the parameters passed from the relying party to the authenticator.
- */
 public record PublicKeyCredentialCreationOptions(
-    PublicKeyCredentialRpEntity rp,
-    PublicKeyCredentialUserEntity user,
-    byte[] challenge,
-    List<PublicKeyCredentialParameters> pubKeyCredParams,
-    Long timeout,
-    List<PublicKeyCredentialDescriptor> excludeCredentials,
-    AuthenticatorSelectionCriteria authenticatorSelection,
-    AttestationConveyancePreference attestation
-) {
-    public PublicKeyCredentialCreationOptions {
-        if (rp == null) {
-            throw new IllegalArgumentException("RP must not be null");
-        }
-        if (user == null) {
-            throw new IllegalArgumentException("User must not be null");
-        }
-        if (challenge == null || challenge.length == 0) {
-            throw new IllegalArgumentException("Challenge must not be null or empty");
-        }
-        if (pubKeyCredParams == null || pubKeyCredParams.isEmpty()) {
-            throw new IllegalArgumentException("Public key credential parameters must not be null or empty");
-        }
+    AttestationType attestation,
+    List<AttestationType> attestationFormats,
+    AuthenticatorSelection authenticatorSelection,
+    String challenge,
+    List<PublicKeyCredentialRef> excludeCredentials,
+    Extensions extensions,
+    List<HintType> hints,
+    List<PublicKeyParameterType> pubKeyCredParams,
+    RelyingParty rp,
+    Integer timeout,
+    User user) {
+  public PublicKeyCredentialCreationOptions {
+    if (attestation == null) {
+      attestation = AttestationType.NONE;
     }
+    if (attestationFormats == null) {
+      attestationFormats = List.of();
+    }
+    if (authenticatorSelection == null) {
+      authenticatorSelection = new AuthenticatorSelection(null, false, null, null);
+    }
+    if (challenge == null) {
+      throw new IllegalArgumentException("challenge cannot be null");
+    }
+    if (excludeCredentials == null) {
+      excludeCredentials = List.of();
+    }
+    if (extensions == null) {
+      extensions = new Extensions(null, null, null, null);
+    }
+    if (hints == null) {
+      hints = List.of();
+    }
+    if (pubKeyCredParams == null) {
+      pubKeyCredParams = List.of();
+    }
+    if (rp == null) {
+      throw new IllegalArgumentException("rp cannot be null");
+    }
+    if (timeout == null) {
+      timeout = 60000;
+    }
+    if (user == null) {
+      throw new IllegalArgumentException("user cannot be null");
+    }
+  }
 }

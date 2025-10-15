@@ -1,13 +1,12 @@
 package dev.ethantmcgee.yubiauthn.model;
 
+import lombok.Getter;
+
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-/**
- * Authenticator data structure as defined in WebAuthn specification.
- * Contains information about the authenticator and the credential.
- */
+@Getter
 public class AuthenticatorData {
     private static final int FLAG_UP = 0x01;  // User Present
     private static final int FLAG_UV = 0x04;  // User Verified
@@ -23,7 +22,7 @@ public class AuthenticatorData {
     private final byte[] extensions;
 
     public AuthenticatorData(byte[] rpIdHash, byte flags, int signCount,
-                            byte[] attestedCredentialData, byte[] extensions) {
+                             byte[] attestedCredentialData, byte[] extensions) {
         if (rpIdHash == null || rpIdHash.length != 32) {
             throw new IllegalArgumentException("RP ID hash must be 32 bytes");
         }
@@ -34,29 +33,6 @@ public class AuthenticatorData {
         this.extensions = extensions;
     }
 
-    public byte[] getRpIdHash() {
-        return rpIdHash;
-    }
-
-    public byte getFlags() {
-        return flags;
-    }
-
-    public int getSignCount() {
-        return signCount;
-    }
-
-    public byte[] getAttestedCredentialData() {
-        return attestedCredentialData;
-    }
-
-    public byte[] getExtensions() {
-        return extensions;
-    }
-
-    /**
-     * Encodes the authenticator data into bytes as per WebAuthn specification.
-     */
     public byte[] encode() {
         int size = 32 + 1 + 4; // rpIdHash + flags + signCount
         if (attestedCredentialData != null) {
@@ -82,9 +58,6 @@ public class AuthenticatorData {
         return buffer.array();
     }
 
-    /**
-     * Builder for creating AuthenticatorData with proper flags.
-     */
     public static class Builder {
         private byte[] rpIdHash;
         private boolean userPresent = true;
