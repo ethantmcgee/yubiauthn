@@ -7,6 +7,11 @@ package dev.ethantmcgee.yubiauthn.model;
  * API. It allows relying parties to specify requirements for the authenticators that may be used
  * for credential creation, such as attachment type and user verification requirements.
  *
+ * @param authenticatorAttachment The preferred authenticator attachment modality (optional)
+ * @param requireResidentKey Whether a resident key (discoverable credential) is required
+ *     (deprecated, use residentKey instead)
+ * @param residentKey The requirement level for resident key creation
+ * @param userVerification The requirement level for user verification
  * @see <a
  *     href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Authentication_API/Authenticator_selection">MDN
  *     - Authenticator Selection</a>
@@ -18,6 +23,7 @@ public record AuthenticatorSelection(
     Boolean requireResidentKey,
     ResidentKeyType residentKey,
     UserVerificationType userVerification) {
+  // validate that the assertion response conforms to specification
   public AuthenticatorSelection {
     if (requireResidentKey == null) {
       requireResidentKey = false;

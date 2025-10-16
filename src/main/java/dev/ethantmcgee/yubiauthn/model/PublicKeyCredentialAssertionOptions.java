@@ -9,6 +9,12 @@ import java.util.List;
  * Authentication API. It contains the parameters needed to guide the authentication process,
  * including the challenge, allowed credentials, and user verification requirements.
  *
+ * @param allowCredentials Credentials allowed for authentication (empty list means any credential)
+ * @param challenge The challenge (random bytes from server) to be signed
+ * @param hints Hints to guide the user agent in selecting authenticators
+ * @param rpId The relying party identifier
+ * @param timeout Timeout in milliseconds for the operation
+ * @param userVerification The requirement level for user verification
  * @see <a
  *     href="https://developer.mozilla.org/en-US/docs/Web/API/CredentialsContainer/get#publickey_object_structure">MDN
  *     - PublicKeyCredentialRequestOptions</a>
@@ -22,6 +28,7 @@ public record PublicKeyCredentialAssertionOptions(
     String rpId,
     Integer timeout,
     UserVerificationType userVerification) {
+  // validate that the assertion response conforms to specification
   public PublicKeyCredentialAssertionOptions {
     if (allowCredentials == null) {
       allowCredentials = List.of();

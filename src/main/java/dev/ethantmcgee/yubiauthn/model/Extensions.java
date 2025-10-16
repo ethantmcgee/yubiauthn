@@ -9,6 +9,10 @@ import com.fasterxml.jackson.annotation.JsonAlias;
  * Authentication API. Extensions provide additional functionality beyond the core WebAuthn
  * specification, such as credential protection policies and minimum PIN length requirements.
  *
+ * @param credProps Whether to enable the credProps extension
+ * @param credentialProtectionPolicy The credential protection policy level to enforce
+ * @param enforceCredentialProtectionPolicy Whether to enforce the credential protection policy
+ * @param minPinLength Whether to enable the minPinLength extension
  * @see <a
  *     href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Authentication_API/WebAuthn_extensions">MDN
  *     - WebAuthn Extensions</a>
@@ -22,6 +26,7 @@ public record Extensions(
     @JsonAlias({"enforceCredProtect", "enforceCredentialProtectionPolicy"})
         Boolean enforceCredentialProtectionPolicy,
     Boolean minPinLength) {
+  // validate that the assertion response conforms to specification
   public Extensions {
     if (credProps == null) {
       credProps = false;

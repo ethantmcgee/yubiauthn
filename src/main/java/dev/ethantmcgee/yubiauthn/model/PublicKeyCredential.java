@@ -11,6 +11,12 @@ import dev.ethantmcgee.yubiauthn.util.JsonUtil;
  *
  * @param <T> The type of response (either {@link RegistrationResponse} or {@link
  *     AssertionResponse})
+ * @param authenticatorAttachment The authenticator attachment modality
+ * @param id The base64url-encoded credential ID
+ * @param rawId The base64url-encoded raw credential ID
+ * @param response The authenticator's response (either registration or assertion response)
+ * @param type The type of credential (typically "public-key")
+ * @param clientExtensionResults The results from processing client extensions
  * @see <a href="https://developer.mozilla.org/en-US/docs/Web/API/PublicKeyCredential">MDN -
  *     PublicKeyCredential</a>
  * @see <a href="https://www.w3.org/TR/webauthn-3/#iface-pkcredential">W3C WebAuthn -
@@ -23,6 +29,7 @@ public record PublicKeyCredential<T>(
     T response,
     CredentialType type,
     ExtensionResults clientExtensionResults) {
+  // validate that the assertion response conforms to specification
   public PublicKeyCredential {
     if (authenticatorAttachment == null) {
       authenticatorAttachment = AuthenticatorAttachmentType.PLATFORM;

@@ -7,6 +7,9 @@ package dev.ethantmcgee.yubiauthn.model;
  * Authentication API. It contains the results of processing extension inputs during credential
  * creation or authentication.
  *
+ * @param credProps The result of the credProps extension
+ * @param credProtect The credential protection policy level that was set
+ * @param minPinLength The minimum PIN length supported by the authenticator
  * @see <a
  *     href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Authentication_API/WebAuthn_extensions">MDN
  *     - WebAuthn Extensions</a>

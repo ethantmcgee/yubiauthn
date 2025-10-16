@@ -112,6 +112,15 @@ public class YubiKeyEmulator {
 
   /** Builder class for YubiKeyEmulator with proper initialization and validation. */
   public static class YubiKeyEmulatorBuilder {
+    /**
+     * Builds and initializes a YubiKeyEmulator instance.
+     *
+     * <p>This method constructs the emulator and automatically initializes it by generating
+     * attestation keys and certificates if they were not explicitly provided during configuration.
+     *
+     * @return a fully initialized YubiKeyEmulator instance
+     * @throws CryptoException if cryptographic operations fail during initialization
+     */
     public YubiKeyEmulator build() throws CryptoException {
       YubiKeyEmulator res = buildInternal();
       res.init();
@@ -362,6 +371,7 @@ public class YubiKeyEmulator {
    * @return The assertion response with signature
    * @throws CredentialNotFoundException If no matching credential is found
    * @throws CryptoException If cryptographic operations fail
+   * @throws JsonProcessingException If json generation fails
    */
   public PublicKeyCredential<AssertionResponse> get(PublicKeyCredentialAssertionOptions options)
       throws CredentialNotFoundException, CryptoException, JsonProcessingException {

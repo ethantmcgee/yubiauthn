@@ -10,6 +10,17 @@ import java.util.List;
  * including relying party information, user information, challenge, and various options controlling
  * the authenticator behavior.
  *
+ * @param attestation The relying party's preference for attestation conveyance
+ * @param attestationFormats The preferred attestation formats
+ * @param authenticatorSelection Criteria for selecting authenticators
+ * @param challenge The challenge (random bytes from server) to be signed
+ * @param excludeCredentials Credentials to exclude from the creation process
+ * @param extensions Extension inputs for credential creation
+ * @param hints Hints to guide the user agent in selecting authenticators
+ * @param pubKeyCredParams Acceptable credential types and algorithms
+ * @param rp Relying party information
+ * @param timeout Timeout in milliseconds for the operation
+ * @param user User account information
  * @see <a
  *     href="https://developer.mozilla.org/en-US/docs/Web/API/CredentialsContainer/create#publickey_object_structure">MDN
  *     - PublicKeyCredentialCreationOptions</a>
@@ -28,6 +39,7 @@ public record PublicKeyCredentialCreationOptions(
     RelyingParty rp,
     Integer timeout,
     User user) {
+  // validate that the assertion response conforms to specification
   public PublicKeyCredentialCreationOptions {
     if (attestation == null) {
       attestation = AttestationType.NONE;

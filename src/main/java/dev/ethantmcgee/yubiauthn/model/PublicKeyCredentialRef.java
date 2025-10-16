@@ -9,6 +9,9 @@ import java.util.List;
  * API. It is used to identify and describe credentials, particularly in allowCredentials and
  * excludeCredentials lists.
  *
+ * @param id The credential ID (base64url-encoded)
+ * @param transports The list of transport types supported by the authenticator for this credential
+ * @param type The type of credential (typically "public-key")
  * @see <a href="https://developer.mozilla.org/en-US/docs/Web/API/PublicKeyCredentialDescriptor">MDN
  *     - PublicKeyCredentialDescriptor</a>
  * @see <a href="https://www.w3.org/TR/webauthn-3/#dictdef-publickeycredentialdescriptor">W3C
@@ -16,6 +19,7 @@ import java.util.List;
  */
 public record PublicKeyCredentialRef(
     String id, List<TransportType> transports, CredentialType type) {
+  // validate that the assertion response conforms to specification
   public PublicKeyCredentialRef {
     if (id == null) {
       throw new IllegalArgumentException("id cannot be null");

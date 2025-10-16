@@ -7,6 +7,9 @@ package dev.ethantmcgee.yubiauthn.model;
  * statement. The attestation object is used to verify the provenance of an authenticator and its
  * attested credentials.
  *
+ * @param fmt The attestation format identifier (e.g., "packed", "fido-u2f", "none")
+ * @param authData The authenticator data containing the credential public key and other information
+ * @param attStmt The attestation statement containing cryptographic proof
  * @see <a
  *     href="https://developer.mozilla.org/en-US/docs/Web/API/AuthenticatorAttestationResponse/attestationObject">MDN
  *     - attestationObject</a>
@@ -15,6 +18,7 @@ package dev.ethantmcgee.yubiauthn.model;
  */
 public record AttestationObject(
     String fmt, AuthenticatorData authData, AttestationStatement attStmt) {
+  // validate that the assertion response conforms to specification
   public AttestationObject {
     if (fmt == null || fmt.isBlank()) {
       throw new IllegalArgumentException("Format must not be null or blank");
