@@ -96,8 +96,7 @@ public class CryptoUtils {
     return keyGen.generateKeyPair();
   }
 
-  private static KeyPair generateEdDSAKeyPair()
-      throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
+  private static KeyPair generateEdDSAKeyPair() throws NoSuchAlgorithmException {
     KeyPairGenerator keyGen = KeyPairGenerator.getInstance("Ed25519", new BouncyCastleProvider());
     return keyGen.generateKeyPair();
   }
@@ -301,5 +300,114 @@ public class CryptoUtils {
     byte[] credentialId = new byte[16];
     new SecureRandom().nextBytes(credentialId);
     return credentialId;
+  }
+
+  /**
+   * Converts a COSE-encoded public key to FIDO U2F raw format.
+   *
+   * <p>FIDO U2F requires the public key in raw EC point format: 0x04 || X || Y (65 bytes for
+   * P-256). This method extracts the X and Y coordinates from the COSE key structure and formats
+   * them accordingly.
+   *
+   * @param cosePublicKey The CBOR-encoded COSE public key
+   * @return The raw EC public key in U2F format (65 bytes: 0x04 || X || Y)
+   * @throws IOException If CBOR decoding fails
+   * @throws IllegalArgumentException If the key is not a valid EC2 key
+   * @see <a
+   *     href="https://fidoalliance.org/specs/fido-u2f-v1.2-ps-20170411/fido-u2f-raw-message-formats-v1.2-ps-20170411.html#registration-response-message-success">FIDO
+   *     U2F Raw Message Formats</a>
+   */
+  public static byte[] cosePublicKeyToU2F(byte[] cosePublicKey) throws IOException {
+    // Decode the COSE key structure
+    // Jackson may decode integer keys as either Integer or String, so we need to handle both
+    @SuppressWarnings("unchecked")
+    Map<Object, Object> coseKey = cborMapper.readValue(cosePublicKey, Map.class);
+
+    // Verify it's an EC2 key (kty = 2)
+    Object ktyObj = getMapValue(coseKey, 1);
+    Integer kty = toInteger(ktyObj);
+    if (kty == null || kty != 2) {
+      throw new IllegalArgumentException("Not an EC2 key: kty=" + kty);
+    }
+
+    // Extract X and Y coordinates
+    byte[] x = (byte[]) getMapValue(coseKey, -2);
+    byte[] y = (byte[]) getMapValue(coseKey, -3);
+
+    if (x == null || y == null) {
+      throw new IllegalArgumentException("Missing X or Y coordinate in COSE key");
+    }
+
+    // Ensure X and Y are 32 bytes each (for P-256)
+    x = padOrTrimTo32Bytes(x);
+    y = padOrTrimTo32Bytes(y);
+
+    // Build U2F format: 0x04 || X || Y
+    byte[] u2fKey = new byte[65];
+    u2fKey[0] = 0x04; // Uncompressed point indicator
+    System.arraycopy(x, 0, u2fKey, 1, 32);
+    System.arraycopy(y, 0, u2fKey, 33, 32);
+
+    return u2fKey;
+  }
+
+  /**
+   * Helper method to get a value from a map that may have integer or string keys.
+   *
+   * @param map The map
+   * @param key The integer key
+   * @return The value, or null if not found
+   */
+  private static Object getMapValue(Map<Object, Object> map, int key) {
+    // Try integer key first
+    Object value = map.get(key);
+    if (value != null) {
+      return value;
+    }
+    // Try string key
+    return map.get(String.valueOf(key));
+  }
+
+  /**
+   * Converts an object to an Integer if possible.
+   *
+   * @param obj The object to convert
+   * @return The integer value, or null if conversion fails
+   */
+  private static Integer toInteger(Object obj) {
+    if (obj instanceof Integer) {
+      return (Integer) obj;
+    } else if (obj instanceof Number) {
+      return ((Number) obj).intValue();
+    } else if (obj instanceof String) {
+      try {
+        return Integer.parseInt((String) obj);
+      } catch (NumberFormatException e) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Pads or trims a byte array to exactly 32 bytes.
+   *
+   * @param bytes The input byte array
+   * @return A 32-byte array
+   */
+  private static byte[] padOrTrimTo32Bytes(byte[] bytes) {
+    if (bytes.length == 32) {
+      return bytes;
+    } else if (bytes.length > 32) {
+      // Trim from the left (remove leading zeros)
+      byte[] trimmed = new byte[32];
+      System.arraycopy(bytes, bytes.length - 32, trimmed, 0, 32);
+      return trimmed;
+    } else {
+      // Pad with leading zeros
+      byte[] padded = new byte[32];
+      System.arraycopy(bytes, 0, padded, 32 - bytes.length, bytes.length);
+      return padded;
+    }
   }
 }

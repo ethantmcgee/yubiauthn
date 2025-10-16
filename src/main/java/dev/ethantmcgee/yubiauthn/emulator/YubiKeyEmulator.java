@@ -9,6 +9,7 @@ import dev.ethantmcgee.yubiauthn.exception.CryptoException;
 import dev.ethantmcgee.yubiauthn.exception.InvalidConfigurationException;
 import dev.ethantmcgee.yubiauthn.exception.InvalidRequestException;
 import dev.ethantmcgee.yubiauthn.model.AssertionResponse;
+import dev.ethantmcgee.yubiauthn.model.AttestationFormat;
 import dev.ethantmcgee.yubiauthn.model.AttestationObject;
 import dev.ethantmcgee.yubiauthn.model.AttestationStatement;
 import dev.ethantmcgee.yubiauthn.model.AuthenticatorAttachmentType;
@@ -66,7 +67,7 @@ import lombok.Builder;
  * <h2>Limitations</h2>
  *
  * <ul>
- *   <li>Only supports "packed" attestation format
+ *   <li>Supports "packed", "fido-u2f", and "none" attestation formats
  *   <li>Credentials are stored in memory only (not persisted)
  *   <li>No actual user interaction or biometric verification
  *   <li>Thread-safe only for read operations (not suitable for concurrent writes)
@@ -107,9 +108,11 @@ public class YubiKeyEmulator {
   @Builder.Default private boolean backupEligible = false;
   @Builder.Default private boolean backupState = false;
 
+  @Builder.Default private AttestationFormat attestationFormat = AttestationFormat.PACKED;
+
   /** Builder class for YubiKeyEmulator with proper initialization and validation. */
   public static class YubiKeyEmulatorBuilder {
-    public YubiKeyEmulator build() throws InvalidConfigurationException, CryptoException {
+    public YubiKeyEmulator build() throws CryptoException {
       YubiKeyEmulator res = buildInternal();
       res.init();
       return res;
@@ -119,10 +122,9 @@ public class YubiKeyEmulator {
   /**
    * Initializes the emulator by generating attestation keys and certificate if not provided.
    *
-   * @throws InvalidConfigurationException If configuration is invalid
    * @throws CryptoException If cryptographic operations fail
    */
-  private void init() throws InvalidConfigurationException, CryptoException {
+  private void init() throws CryptoException {
     try {
       if (attestationKeyPair == null) {
         attestationKeyPair = CryptoUtils.generateKeyPair(COSEAlgorithmIdentifier.ES256);
@@ -250,34 +252,17 @@ public class YubiKeyEmulator {
 
     String clientDataJSON;
     byte[] clientDataHash;
-    byte[] signature;
 
     try {
       clientDataJSON = jsonMapper.writeValueAsString(clientData);
       clientDataHash =
           MessageDigest.getInstance("SHA-256")
               .digest(clientDataJSON.getBytes(StandardCharsets.UTF_8));
-
-      ByteArrayOutputStream sigData = new ByteArrayOutputStream();
-      sigData.write(authData.encode());
-      sigData.write(clientDataHash);
-
-      signature =
-          CryptoUtils.sign(
-              sigData.toByteArray(),
-              attestationKeyPair.getPrivate(),
-              COSEAlgorithmIdentifier.ES256);
     } catch (Exception e) {
-      throw new CryptoException("Failed to generate signature for attestation", e);
+      throw new CryptoException("Failed to generate client data hash", e);
     }
 
-    AttestationStatement attStmt =
-        new AttestationStatement(
-            signature,
-            new byte[][] {attestationCertificate.getEncoded()},
-            COSEAlgorithmIdentifier.ES256);
-
-    AttestationObject attestationObject = new AttestationObject("packed", authData, attStmt);
+    AttestationObject attestationObject = generateAttestationObject(authData, clientDataHash);
 
     credentials.put(
         Base64.getUrlEncoder().withoutPadding().encodeToString(credentialId),
@@ -324,7 +309,9 @@ public class YubiKeyEmulator {
       return false;
     }
 
-    if (authenticatorSelection.requireResidentKey() != null && !supportsResidentKey) {
+    if (authenticatorSelection.requireResidentKey() != null
+        && authenticatorSelection.requireResidentKey()
+        && !supportsResidentKey) {
       return false;
     }
 
@@ -558,11 +545,21 @@ public class YubiKeyEmulator {
     attestationMap.put("authData", attestationObject.authData().encode());
 
     Map<String, Object> attStmtMap = new HashMap<>();
-    attStmtMap.put("alg", attestationObject.attStmt().alg().getValue());
-    attStmtMap.put("sig", attestationObject.attStmt().sig());
 
-    if (attestationObject.attStmt().x5c() != null && attestationObject.attStmt().x5c().length > 0) {
-      attStmtMap.put("x5c", Arrays.asList(attestationObject.attStmt().x5c()));
+    // For "none" attestation, attStmt should be an empty map
+    if (!attestationObject.fmt().equals(AttestationFormat.NONE.getValue())) {
+      if (attestationObject.attStmt().sig() != null) {
+        attStmtMap.put("sig", attestationObject.attStmt().sig());
+      }
+
+      if (attestationObject.attStmt().alg() != null) {
+        attStmtMap.put("alg", attestationObject.attStmt().alg().getValue());
+      }
+
+      if (attestationObject.attStmt().x5c() != null
+          && attestationObject.attStmt().x5c().length > 0) {
+        attStmtMap.put("x5c", Arrays.asList(attestationObject.attStmt().x5c()));
+      }
     }
 
     attestationMap.put("attStmt", attStmtMap);
@@ -589,5 +586,132 @@ public class YubiKeyEmulator {
       userVerified = true;
     }
     return userVerified;
+  }
+
+  /**
+   * Generates an attestation object based on the configured attestation format.
+   *
+   * @param authData The authenticator data
+   * @param clientDataHash The SHA-256 hash of the client data JSON
+   * @return The attestation object
+   * @throws CryptoException If cryptographic operations fail
+   */
+  private AttestationObject generateAttestationObject(
+      AuthenticatorData authData, byte[] clientDataHash) throws CryptoException {
+    try {
+      return switch (attestationFormat) {
+        case NONE -> generateNoneAttestation(authData);
+        case FIDO_U2F -> generateFidoU2fAttestation(authData, clientDataHash);
+        case PACKED -> generatePackedAttestation(authData, clientDataHash);
+        default -> throw new CryptoException(
+            "Unsupported attestation format: " + attestationFormat.getValue());
+      };
+    } catch (Exception e) {
+      throw new CryptoException("Failed to generate attestation object", e);
+    }
+  }
+
+  /**
+   * Generates a "none" attestation - no attestation statement.
+   *
+   * @param authData The authenticator data
+   * @return The attestation object with empty attestation statement
+   */
+  private AttestationObject generateNoneAttestation(AuthenticatorData authData) {
+    // For "none" attestation, the attStmt is an empty map
+    AttestationStatement attStmt = new AttestationStatement(null, null, null);
+    return new AttestationObject(AttestationFormat.NONE.getValue(), authData, attStmt);
+  }
+
+  /**
+   * Generates a "packed" attestation statement.
+   *
+   * @param authData The authenticator data
+   * @param clientDataHash The SHA-256 hash of the client data JSON
+   * @return The attestation object with packed attestation
+   * @throws Exception If cryptographic operations fail
+   */
+  private AttestationObject generatePackedAttestation(
+      AuthenticatorData authData, byte[] clientDataHash) throws Exception {
+    ByteArrayOutputStream sigData = new ByteArrayOutputStream();
+    sigData.write(authData.encode());
+    sigData.write(clientDataHash);
+
+    byte[] signature =
+        CryptoUtils.sign(
+            sigData.toByteArray(), attestationKeyPair.getPrivate(), COSEAlgorithmIdentifier.ES256);
+
+    AttestationStatement attStmt =
+        new AttestationStatement(
+            signature,
+            new byte[][] {attestationCertificate.getEncoded()},
+            COSEAlgorithmIdentifier.ES256);
+
+    return new AttestationObject(AttestationFormat.PACKED.getValue(), authData, attStmt);
+  }
+
+  /**
+   * Generates a "fido-u2f" attestation statement. FIDO U2F format uses a specific signature format
+   * and requires ES256 algorithm. The public key in FIDO U2F must be in raw format (65 bytes: 0x04
+   * || X || Y), not COSE format.
+   *
+   * @param authData The authenticator data
+   * @param clientDataHash The SHA-256 hash of the client data JSON
+   * @return The attestation object with fido-u2f attestation
+   * @throws Exception If cryptographic operations fail
+   */
+  private AttestationObject generateFidoU2fAttestation(
+      AuthenticatorData authData, byte[] clientDataHash) throws Exception {
+    // FIDO U2F attestation format requires a specific signature format
+    // Format: 0x00 || rpIdHash || clientDataHash || credentialId || credentialPublicKeyU2F
+    byte[] authDataBytes = authData.encode();
+
+    // Extract components from authenticator data
+    // rpIdHash: bytes 0-31 (32 bytes)
+    byte[] rpIdHash = Arrays.copyOfRange(authDataBytes, 0, 32);
+
+    // For FIDO U2F, we need to extract the credential ID and public key from attested credential
+    // data
+    // attested credential data starts at byte 37 (after rpIdHash + flags + counter)
+    int attestedCredentialDataStart = 37;
+    // Skip AAGUID (16 bytes)
+    int credIdLengthStart = attestedCredentialDataStart + 16;
+
+    // Read credential ID length (2 bytes, big-endian)
+    int credIdLength =
+        ((authDataBytes[credIdLengthStart] & 0xFF) << 8)
+            | (authDataBytes[credIdLengthStart + 1] & 0xFF);
+    int credIdStart = credIdLengthStart + 2;
+    byte[] credentialId =
+        Arrays.copyOfRange(authDataBytes, credIdStart, credIdStart + credIdLength);
+
+    // Public key starts after credential ID - it's in COSE format currently
+    int publicKeyStart = credIdStart + credIdLength;
+    byte[] credentialPublicKeyCOSE =
+        Arrays.copyOfRange(authDataBytes, publicKeyStart, authDataBytes.length);
+
+    // FIDO U2F requires the public key in raw format: 0x04 || X || Y
+    // We need to extract X and Y from the COSE public key and convert to U2F format
+    byte[] credentialPublicKeyU2F = CryptoUtils.cosePublicKeyToU2F(credentialPublicKeyCOSE);
+
+    // Build verification data for signature
+    ByteArrayOutputStream verificationData = new ByteArrayOutputStream();
+    verificationData.write(0x00); // Reserved byte
+    verificationData.write(rpIdHash);
+    verificationData.write(clientDataHash);
+    verificationData.write(credentialId);
+    verificationData.write(credentialPublicKeyU2F);
+
+    byte[] signature =
+        CryptoUtils.sign(
+            verificationData.toByteArray(),
+            attestationKeyPair.getPrivate(),
+            COSEAlgorithmIdentifier.ES256);
+
+    AttestationStatement attStmt =
+        new AttestationStatement(
+            signature, new byte[][] {attestationCertificate.getEncoded()}, null);
+
+    return new AttestationObject(AttestationFormat.FIDO_U2F.getValue(), authData, attStmt);
   }
 }
