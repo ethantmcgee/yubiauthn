@@ -49,7 +49,7 @@ import dev.ethantmcgee.yubiauthn.emulator.Yubikey;
 import dev.ethantmcgee.yubiauthn.emulator.YubiKeyEmulator;
 
 // Create an emulator instance using a pre-configured model
-YubiKeyEmulator emulator = Yubikey.YK_5C_NFC.build();
+YubiKeyEmulator emulator = Yubikey.get5cNfc();
 
 // Register a credential
 PublicKeyCredentialCreationOptions registrationOptions = // ... build options
@@ -144,7 +144,7 @@ This emulator works seamlessly with popular WebAuthn server libraries like [java
 import com.yubico.webauthn.*;
 
 // Initialize emulator
-YubiKeyEmulator emulator = Yubikey.YK_5C_NFC.build();
+YubiKeyEmulator emulator = Yubikey.get5cNfc();
 
 // Set up relying party
 RelyingParty rp = RelyingParty.builder()

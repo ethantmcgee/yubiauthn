@@ -47,7 +47,7 @@ public class JavaWebauthnServerIntegrationTest {
 
   @Test
   void testYubiauthnNoValidation() throws Exception {
-    final var emulator = Yubikey.YK_5C_NFC.build();
+    final var emulator = Yubikey.get5cNfc();
 
     final var domain = faker.internet().domainName();
     final var credentialStore = new InMemoryCredentialStore();
