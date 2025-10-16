@@ -10,6 +10,7 @@ public class JsonUtil {
     return new ObjectMapper()
         .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
         .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
+        .setDefaultPropertyInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
         .registerModule(new Jdk8Module());
   }
 }

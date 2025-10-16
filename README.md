@@ -1,10 +1,10 @@
 # YubiAuthn
 
-A Java 24 library that emulates a YubiKey NFC 5C hardware authenticator, providing FIDO2/WebAuthn credential creation and attestation functionality for testing and development purposes.
+A Java 21 library that emulates a YubiKey NFC 5C hardware authenticator, providing FIDO2/WebAuthn credential creation and attestation functionality for testing and development purposes.
 
 ## Requirements
 
-- Java 24 or higher
+- Java 21 or higher
 - Maven 3.6+ (for building)
 
 ## Installation
@@ -27,144 +27,189 @@ cd yubiauthn
 mvn clean install
 ```
 
+## Features
+
+- **Multiple Authenticator Models**: Pre-configured YubiKey 5 Series emulators
+- **COSE Algorithm Support**: ES256, ES384, ES512, RS256, RS384, RS512, EdDSA
+- **Authenticator Types**: Cross-platform and platform authenticators
+- **User Verification**: Configurable user presence and user verification
+- **Resident Keys**: Support for discoverable credentials
+- **Extensions**: credProtect, credProps, minPinLength
+- **Backup Flags**: Backup eligible and backup state support
+- **Attestation**: Self-signed packed attestation format
+- **Credential Management**: Full CRUD operations for stored credentials
+- **Custom Exceptions**: Specific exception types for better error handling
+
 ## Usage
 
-### Creating a Credential (Registration)
+### Basic Example
 
 ```java
+import dev.ethantmcgee.yubiauthn.emulator.Yubikey;
 import dev.ethantmcgee.yubiauthn.emulator.YubiKeyEmulator;
-import dev.ethantmcgee.yubiauthn.model.*;
-import dev.ethantmcgee.yubiauthn.crypto.CryptoUtils;
 
-// Initialize the emulator
-YubiKeyEmulator emulator = new YubiKeyEmulator();
+// Create an emulator instance using a pre-configured model
+YubiKeyEmulator emulator = Yubikey.YK_5C_NFC.build();
 
-// Create credential creation options
-PublicKeyCredentialCreationOptions options = new PublicKeyCredentialCreationOptions(
-    new PublicKeyCredentialRpEntity("example.com", "Example Corp"),
-    new PublicKeyCredentialUserEntity(
-        "user123".getBytes(),
-        "user@example.com",
-        "John Doe"
-    ),
-    CryptoUtils.generateChallenge(),
-    List.of(
-        new PublicKeyCredentialParameters(
-            PublicKeyCredentialType.PUBLIC_KEY,
-            COSEAlgorithmIdentifier.ES256
-        )
-    ),
-    30000L,
-    null,
-    new AuthenticatorSelectionCriteria(
-        AuthenticatorSelectionCriteria.AuthenticatorAttachment.CROSS_PLATFORM,
-        false,
-        "discouraged",
-        UserVerificationRequirement.PREFERRED
-    ),
-    AttestationConveyancePreference.DIRECT
-);
+// Register a credential
+PublicKeyCredentialCreationOptions registrationOptions = // ... build options
+PublicKeyCredential<RegistrationResponse> credential = emulator.create(registrationOptions);
 
-// Create the credential
-PublicKeyCredential<AuthenticatorAttestationResponse> credential =
-    emulator.makeCredential(options);
-
-// The credential contains:
-// - credential.id(): The credential ID
-// - credential.response().attestationObject(): The attestation object with signature
-// - credential.response().clientDataJSON(): The client data JSON
+// Authenticate with the credential
+PublicKeyCredentialAssertionOptions assertionOptions = // ... build options
+PublicKeyCredential<AssertionResponse> assertion = emulator.get(assertionOptions);
 ```
 
-### Authenticating with a Credential (Assertion)
+### Custom Emulator Configuration
 
 ```java
-// Create authentication options
-PublicKeyCredentialRequestOptions requestOptions = new PublicKeyCredentialRequestOptions(
-    CryptoUtils.generateChallenge(),
-    30000L,
-    "example.com",
-    List.of(
-        new PublicKeyCredentialDescriptor(
-            PublicKeyCredentialType.PUBLIC_KEY,
-            credentialId, // From the credential created above
-            List.of(AuthenticatorTransport.USB, AuthenticatorTransport.NFC)
-        )
-    ),
-    UserVerificationRequirement.PREFERRED
-);
-
-// Get assertion
-PublicKeyCredential<AuthenticatorAssertionResponse> assertion =
-    emulator.getAssertion(requestOptions);
-
-// The assertion contains:
-// - assertion.response().authenticatorData(): Authenticator data with signature counter
-// - assertion.response().signature(): The cryptographic signature
-// - assertion.response().userHandle(): The user identifier
-// - assertion.response().clientDataJSON(): The client data JSON
+YubiKeyEmulator customEmulator = YubiKeyEmulator.builder()
+    .aaguid("2fc0579f-8113-47ea-b116-bb5a8db9202a")
+    .description("Custom Authenticator")
+    .transports(List.of(TransportType.USB, TransportType.NFC))
+    .supportedAlgorithms(List.of(
+        COSEAlgorithmIdentifier.ES256,
+        COSEAlgorithmIdentifier.ES384
+    ))
+    .supportedAttachmentTypes(List.of(AuthenticatorAttachmentType.CROSS_PLATFORM))
+    .supportsUserPresence(true)
+    .supportsUserVerification(true)
+    .supportsResidentKey(true)
+    .supportsCredProtect(true)
+    .supportsMinPinLength(true)
+    .pinLength(6)
+    .backupEligible(true)
+    .backupState(false)
+    .build();
 ```
 
-### Complete Example
+### Credential Management
 
 ```java
-import dev.ethantmcgee.yubiauthn.emulator.YubiKeyEmulator;
-import dev.ethantmcgee.yubiauthn.model.*;
-import dev.ethantmcgee.yubiauthn.crypto.CryptoUtils;
-import java.util.List;
+// Get total credential count
+int count = emulator.getCredentialCount();
 
-public class WebAuthnExample {
-    public static void main(String[] args) throws Exception {
-        // Initialize emulator
-        YubiKeyEmulator emulator = new YubiKeyEmulator();
+// Get all credentials for a specific RP
+List<StoredCredential> credentials = emulator.getCredentialsByRpId("example.com");
 
-        // Registration
-        byte[] userId = "user12345".getBytes();
-        PublicKeyCredentialCreationOptions createOptions =
-            new PublicKeyCredentialCreationOptions(
-                new PublicKeyCredentialRpEntity("myapp.com", "My Application"),
-                new PublicKeyCredentialUserEntity(userId, "alice@example.com", "Alice"),
-                CryptoUtils.generateChallenge(),
-                List.of(new PublicKeyCredentialParameters(
-                    PublicKeyCredentialType.PUBLIC_KEY,
-                    COSEAlgorithmIdentifier.ES256
-                )),
-                30000L,
-                null,
-                null,
-                AttestationConveyancePreference.NONE
-            );
+// Get a specific credential
+StoredCredential cred = emulator.getCredential(credentialId);
 
-        PublicKeyCredential<AuthenticatorAttestationResponse> credential =
-            emulator.makeCredential(createOptions);
+// Remove a credential
+boolean removed = emulator.removeCredential(credentialId);
 
-        System.out.println("Credential created with ID: " +
-            java.util.Base64.getUrlEncoder().encodeToString(credential.id()));
+// Clear all credentials and reset state
+emulator.reset();
 
-        // Authentication
-        PublicKeyCredentialRequestOptions assertionOptions =
-            new PublicKeyCredentialRequestOptions(
-                CryptoUtils.generateChallenge(),
-                30000L,
-                "myapp.com",
-                List.of(new PublicKeyCredentialDescriptor(
-                    PublicKeyCredentialType.PUBLIC_KEY,
-                    credential.rawId(),
-                    null
-                )),
-                UserVerificationRequirement.PREFERRED
-            );
+// Get current signature counter
+int counter = emulator.getSignatureCounter();
+```
 
-        PublicKeyCredential<AuthenticatorAssertionResponse> assertion =
-            emulator.getAssertion(assertionOptions);
+### Error Handling
 
-        System.out.println("Authentication successful!");
-        System.out.println("User handle: " +
-            new String(assertion.response().userHandle()));
-    }
+```java
+import dev.ethantmcgee.yubiauthn.exception.*;
+
+try {
+    PublicKeyCredential<RegistrationResponse> credential =
+        emulator.create(registrationOptions);
+} catch (InvalidConfigurationException e) {
+    // Emulator is not properly configured (e.g., missing AAGUID)
+    System.err.println("Configuration error: " + e.getMessage());
+} catch (InvalidRequestException e) {
+    // Request doesn't meet authenticator requirements
+    // (e.g., no matching algorithms, wrong authenticator type)
+    System.err.println("Request error: " + e.getMessage());
+} catch (CryptoException e) {
+    // Cryptographic operation failed
+    System.err.println("Crypto error: " + e.getMessage());
+}
+
+try {
+    PublicKeyCredential<AssertionResponse> assertion =
+        emulator.get(assertionOptions);
+} catch (CredentialNotFoundException e) {
+    // No matching credential found for the request
+    System.err.println("Credential not found: " + e.getMessage());
+} catch (CryptoException e) {
+    System.err.println("Crypto error: " + e.getMessage());
 }
 ```
 
+### Integration with WebAuthn Libraries
+
+This emulator works seamlessly with popular WebAuthn server libraries like [java-webauthn-server](https://github.com/Yubico/java-webauthn-server):
+
+```java
+import com.yubico.webauthn.*;
+
+// Initialize emulator
+YubiKeyEmulator emulator = Yubikey.YK_5C_NFC.build();
+
+// Set up relying party
+RelyingParty rp = RelyingParty.builder()
+    .identity(RelyingPartyIdentity.builder()
+        .id("example.com")
+        .name("Example Company")
+        .build())
+    .credentialRepository(credentialStore)
+    .build();
+
+// Start registration
+PublicKeyCredentialCreationOptions creationOptions =
+    rp.startRegistration(StartRegistrationOptions.builder()
+        .user(UserIdentity.builder()
+            .name("user@example.com")
+            .displayName("User Name")
+            .id(userId)
+            .build())
+        .build());
+
+// Emulator creates credential
+PublicKeyCredential credential = emulator.create(creationOptions.toJson());
+
+// Finish registration with relying party
+RegistrationResult result = rp.finishRegistration(
+    FinishRegistrationOptions.builder()
+        .request(creationOptions)
+        .response(credential)
+        .build());
+```
+
+For complete examples, see [tests](src/test/java/dev/ethantmcgee/yubiauthn/JavaWebauthnServerIntegrationTest.java).
+
+## Limitations
+
+This emulator has the following limitations compared to real YubiKey hardware:
+
+- **Attestation Format**: Only supports "packed" attestation format (not FIDO U2F format)
+- **Storage**: Credentials are stored in memory only and are not persisted
+- **Thread Safety**: Not thread-safe for concurrent write operations
+- **User Interaction**: No actual user presence verification or biometric authentication
+- **Attestation Chain**: Uses self-signed certificates, not production attestation chains
+- **Credential IDs**: Fixed 16-byte credential IDs (real YubiKeys may vary)
+- **Certificate Validity**: Generated certificates have 1-year validity
+- **Algorithm Support in COSE Encoding**: Currently only EC keys are supported in COSE encoding (EdDSA and RSA support planned)
+
 ## Architecture
+
+The emulator consists of several key components:
+
+- **YubiKeyEmulator**: Main emulator class that handles credential operations
+- **CryptoUtils**: Cryptographic utilities for key generation, signing, and COSE encoding
+- **Model Classes**: Data classes representing WebAuthn structures (PublicKeyCredential, AuthenticatorData, etc.)
+- **Exceptions**: Specific exception types for different error scenarios
+- **Yubikey**: Pre-configured emulator builders for common YubiKey models
+
+### Exception Hierarchy
+
+```
+AuthenticatorException (base)
+├── InvalidConfigurationException (emulator misconfiguration)
+├── InvalidRequestException (request doesn't meet requirements)
+├── CredentialNotFoundException (credential not found)
+└── CryptoException (cryptographic operation failure)
+```
 
 ### Supported Algorithms
 
@@ -194,15 +239,15 @@ This library is intended for **testing and development purposes only**. It shoul
 
 Please read [CONTRIBUTING.md](https://github.com/ethantmcgee/yubiauthn/blob/master/CONTRIBUTING.md) for details on our code of conduct, and the process for submitting pull requests to us.
 
-## Versioning
-
-We use daily versions in the format YYYY.MM.DD.
-
 ## Authors
 
 * **Ethan McGee** - *Initial work* - [ethantmcgee](https://github.com/ethantmcgee)
 
 See also the list of [contributors](https://github.com/ethantmcgee/yubiauthn/contributors) who participated in this project.
+
+## Inspired By
+
+This library is a successor of [softauthn](https://github.com/adessoSE/softauthn).
 
 ## License
 

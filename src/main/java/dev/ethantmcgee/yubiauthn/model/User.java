@@ -1,5 +1,14 @@
 package dev.ethantmcgee.yubiauthn.model;
 
+/**
+ * Represents user account information for WebAuthn credential creation.
+ *
+ * <p>This record models the PublicKeyCredentialUserEntity dictionary from the Web Authentication API.
+ * It contains information about the user account for which a credential is being created.
+ *
+ * @see <a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Authentication_API/WebAuthn_extensions">MDN - User Entity</a>
+ * @see <a href="https://www.w3.org/TR/webauthn-3/#dictdef-publickeycredentialuserentity">W3C WebAuthn - PublicKeyCredentialUserEntity Dictionary</a>
+ */
 public record User(String displayName, String id, String name) {
   public User {
     if (displayName == null) {

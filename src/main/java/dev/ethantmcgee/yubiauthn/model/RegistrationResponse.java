@@ -2,14 +2,22 @@ package dev.ethantmcgee.yubiauthn.model;
 
 import java.util.List;
 
-public record AuthenticatorResponse(
+/**
+ * Represents the authenticator's response to a credential registration request.
+ *
+ * <p>This record models the AuthenticatorAttestationResponse interface from the Web Authentication API.
+ * It contains the attestation object and related data created during credential registration.
+ *
+ * @see <a href="https://developer.mozilla.org/en-US/docs/Web/API/AuthenticatorAttestationResponse">MDN - AuthenticatorAttestationResponse</a>
+ * @see <a href="https://www.w3.org/TR/webauthn-3/#iface-authenticatorattestationresponse">W3C WebAuthn - AuthenticatorAttestationResponse Interface</a>
+ */
+public record RegistrationResponse(
     String clientDataJSON,
     String attestationObject,
     List<TransportType> transports,
     AuthenticatorData authenticatorData,
-    String publicKey,
     COSEAlgorithmIdentifier publicKeyAlgorithm) {
-  public AuthenticatorResponse {
+  public RegistrationResponse {
     if (clientDataJSON == null) {
       throw new IllegalArgumentException("clientDataJSON cannot be null");
     }
@@ -21,9 +29,6 @@ public record AuthenticatorResponse(
     }
     if (authenticatorData == null) {
       throw new IllegalArgumentException("authenticatorData cannot be null");
-    }
-    if (publicKey == null) {
-      throw new IllegalArgumentException("publicKey cannot be null");
     }
     if (publicKeyAlgorithm == null) {
       throw new IllegalArgumentException("publicKeyAlgorithm cannot be null");

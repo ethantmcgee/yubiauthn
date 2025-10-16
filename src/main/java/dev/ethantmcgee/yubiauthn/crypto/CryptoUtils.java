@@ -1,7 +1,8 @@
 package dev.ethantmcgee.yubiauthn.crypto;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import dev.ethantmcgee.yubiauthn.model.COSEAlgorithmIdentifier;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -29,11 +30,44 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 
+/**
+ * Cryptographic utility methods for WebAuthn operations.
+ *
+ * <p>This class provides essential cryptographic operations needed for WebAuthn authenticator
+ * implementations, including key pair generation, COSE key encoding, digital signatures,
+ * and attestation certificate generation.
+ *
+ * <p>Supports multiple cryptographic algorithms as specified in the COSE (CBOR Object Signing
+ * and Encryption) specification, including:
+ * <ul>
+ *   <li>ECDSA with P-256, P-384, and P-521 curves</li>
+ *   <li>RSA with SHA-256, SHA-384, and SHA-512</li>
+ *   <li>EdDSA (Ed25519)</li>
+ * </ul>
+ *
+ * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-cryptographic-challenges">W3C WebAuthn - Cryptographic Challenges</a>
+ * @see <a href="https://datatracker.ietf.org/doc/html/rfc8152">RFC 8152 - COSE</a>
+ * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-attestation">W3C WebAuthn - Attestation</a>
+ */
 public class CryptoUtils {
+  private static final ObjectMapper cborMapper = new ObjectMapper(new CBORFactory());
+
   static {
     Security.addProvider(new BouncyCastleProvider());
   }
 
+  /**
+   * Generates a cryptographic key pair for the specified COSE algorithm.
+   *
+   * <p>This method creates a new key pair suitable for use with WebAuthn credentials.
+   * The type of key pair (EC, RSA, or EdDSA) depends on the specified algorithm.
+   *
+   * @param algorithm The COSE algorithm identifier specifying which algorithm to use
+   * @return A newly generated key pair appropriate for the algorithm
+   * @throws NoSuchAlgorithmException If the algorithm is not available
+   * @throws InvalidAlgorithmParameterException If the algorithm parameters are invalid
+   * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-public-key-easy">W3C WebAuthn - Public Key Credential</a>
+   */
   public static KeyPair generateKeyPair(COSEAlgorithmIdentifier algorithm)
       throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
     return switch (algorithm) {
@@ -65,7 +99,21 @@ public class CryptoUtils {
     return keyGen.generateKeyPair();
   }
 
-  /** Encodes a public key in COSE format according to RFC 8152. */
+  /**
+   * Encodes a public key in COSE format according to RFC 8152.
+   *
+   * <p>The encoded public key is suitable for inclusion in WebAuthn authenticator data
+   * as the credential public key. The format follows the COSE key structure with appropriate
+   * parameters for the key type (EC2 for elliptic curve keys).
+   *
+   * @param publicKey The public key to encode (currently supports EC public keys)
+   * @param algorithm The COSE algorithm identifier
+   * @return The CBOR-encoded COSE key bytes
+   * @throws IOException If CBOR encoding fails
+   * @throws IllegalArgumentException If the public key type is unsupported
+   * @see <a href="https://datatracker.ietf.org/doc/html/rfc8152#section-13">RFC 8152 - COSE Key Objects</a>
+   * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-encoded-credPubKey-examples">W3C WebAuthn - Credential Public Key Examples</a>
+   */
   public static byte[] encodeCOSEPublicKey(PublicKey publicKey, COSEAlgorithmIdentifier algorithm)
       throws IOException {
     Map<Integer, Object> coseKey = new HashMap<>();
@@ -100,7 +148,8 @@ public class CryptoUtils {
           "Unsupported public key type: " + publicKey.getClass().getName());
     }
 
-    return encodeCBOR(coseKey);
+    // Use Jackson CBOR mapper instead of manual encoding
+    return cborMapper.writeValueAsBytes(coseKey);
   }
 
   private static byte[] removeLeadingZero(byte[] bytes) {
@@ -112,75 +161,19 @@ public class CryptoUtils {
     return bytes;
   }
 
-  private static byte[] encodeCBOR(Map<Integer, Object> map) throws IOException {
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-
-    // Major type 5 (map) with additional info for count
-    baos.write(0xA0 | map.size());
-
-    // Sort keys for deterministic encoding
-    map.keySet().stream()
-        .sorted()
-        .forEach(
-            key -> {
-              try {
-                // Encode key (negative or positive integer)
-                encodeCBORInteger(baos, key);
-
-                // Encode value
-                Object value = map.get(key);
-                if (value instanceof Integer intValue) {
-                  encodeCBORInteger(baos, intValue);
-                } else if (value instanceof byte[] byteValue) {
-                  encodeCBORByteString(baos, byteValue);
-                }
-              } catch (IOException e) {
-                throw new RuntimeException(e);
-              }
-            });
-
-    return baos.toByteArray();
-  }
-
-  private static void encodeCBORInteger(ByteArrayOutputStream baos, int value) throws IOException {
-    if (value >= 0) {
-      if (value < 24) {
-        baos.write(value);
-      } else if (value < 256) {
-        baos.write(0x18);
-        baos.write(value);
-      } else {
-        baos.write(0x19);
-        baos.write((value >> 8) & 0xFF);
-        baos.write(value & 0xFF);
-      }
-    } else {
-      // Negative integer
-      int absValue = -1 - value;
-      if (absValue < 24) {
-        baos.write(0x20 | absValue);
-      } else if (absValue < 256) {
-        baos.write(0x38);
-        baos.write(absValue);
-      }
-    }
-  }
-
-  private static void encodeCBORByteString(ByteArrayOutputStream baos, byte[] bytes)
-      throws IOException {
-    if (bytes.length < 24) {
-      baos.write(0x40 | bytes.length);
-    } else if (bytes.length < 256) {
-      baos.write(0x58);
-      baos.write(bytes.length);
-    } else {
-      baos.write(0x59);
-      baos.write((bytes.length >> 8) & 0xFF);
-      baos.write(bytes.length & 0xFF);
-    }
-    baos.write(bytes);
-  }
-
+  /**
+   * Creates a digital signature over the provided data using the specified private key and algorithm.
+   *
+   * <p>This method is used to generate signatures for WebAuthn assertion responses and
+   * attestation statements. The signature algorithm is determined by the COSE algorithm identifier.
+   *
+   * @param data The data to sign
+   * @param privateKey The private key to use for signing
+   * @param algorithm The COSE algorithm identifier specifying the signature algorithm
+   * @return The digital signature bytes
+   * @throws Exception If signature generation fails
+   * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-op-get-assertion">W3C WebAuthn - Signature Generation</a>
+   */
   public static byte[] sign(byte[] data, PrivateKey privateKey, COSEAlgorithmIdentifier algorithm)
       throws Exception {
     String signatureAlgorithm =
@@ -200,6 +193,19 @@ public class CryptoUtils {
     return signature.sign();
   }
 
+  /**
+   * Generates a self-signed X.509 attestation certificate for WebAuthn attestation.
+   *
+   * <p>This certificate is used in the attestation statement to provide cryptographic proof
+   * of the authenticator's characteristics. The certificate is self-signed and valid for one year.
+   *
+   * @param keyPair The key pair for which to generate the certificate
+   * @param subject The X.500 distinguished name for the certificate subject (e.g., "CN=MyAuthenticator")
+   * @return A self-signed X.509 certificate
+   * @throws Exception If certificate generation fails
+   * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-attestation">W3C WebAuthn - Attestation</a>
+   * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-packed-attestation">W3C WebAuthn - Packed Attestation</a>
+   */
   public static X509Certificate generateAttestationCertificate(KeyPair keyPair, String subject)
       throws Exception {
     long now = System.currentTimeMillis();
@@ -217,8 +223,11 @@ public class CryptoUtils {
         new X509v3CertificateBuilder(
             issuer, serialNumber, startDate, endDate, subjectName, subjectPublicKeyInfo);
 
+    // Determine the signing algorithm based on the key type
+    String signingAlgorithm = getSigningAlgorithmForKey(keyPair.getPrivate());
+
     ContentSigner signer =
-        new JcaContentSignerBuilder("SHA256withECDSA")
+        new JcaContentSignerBuilder(signingAlgorithm)
             .setProvider(new BouncyCastleProvider())
             .build(keyPair.getPrivate());
 
@@ -228,6 +237,35 @@ public class CryptoUtils {
         .getCertificate(certHolder);
   }
 
+  /**
+   * Determines the appropriate signing algorithm for a given private key.
+   *
+   * @param privateKey The private key
+   * @return The signing algorithm name (e.g., "SHA256withECDSA")
+   */
+  private static String getSigningAlgorithmForKey(PrivateKey privateKey) {
+    String algorithm = privateKey.getAlgorithm();
+    return switch (algorithm) {
+      case "EC" -> "SHA256withECDSA";
+      case "RSA" -> "SHA256withRSA";
+      case "Ed25519", "EdDSA" -> "Ed25519";
+      default -> throw new IllegalArgumentException("Unsupported key algorithm: " + algorithm);
+    };
+  }
+
+  /**
+   * Creates the attested credential data structure for inclusion in authenticator data.
+   *
+   * <p>The attested credential data contains the AAGUID, credential ID, and credential public key
+   * in the format specified by the WebAuthn specification. This data is included in the
+   * authenticator data during credential creation.
+   *
+   * @param aaguid The Authenticator Attestation GUID (16 bytes)
+   * @param credentialId The unique identifier for this credential
+   * @param credentialPublicKey The COSE-encoded credential public key
+   * @return The encoded attested credential data bytes
+   * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-attested-credential-data">W3C WebAuthn - Attested Credential Data</a>
+   */
   public static byte[] createAttestedCredentialData(
       byte[] aaguid, byte[] credentialId, byte[] credentialPublicKey) {
     ByteBuffer buffer =
@@ -239,15 +277,18 @@ public class CryptoUtils {
     return buffer.array();
   }
 
+  /**
+   * Generates a cryptographically random credential ID.
+   *
+   * <p>This method creates a new 16-byte (128-bit) credential ID using a secure random
+   * number generator. The credential ID is used to uniquely identify a credential.
+   *
+   * @return A 16-byte random credential ID
+   * @see <a href="https://www.w3.org/TR/webauthn-3/#credential-id">W3C WebAuthn - Credential ID</a>
+   */
   public static byte[] generateCredentialId() {
     byte[] credentialId = new byte[16];
     new SecureRandom().nextBytes(credentialId);
     return credentialId;
-  }
-
-  public static byte[] generateChallenge() {
-    byte[] challenge = new byte[32];
-    new SecureRandom().nextBytes(challenge);
-    return challenge;
   }
 }

@@ -3,6 +3,8 @@ package dev.ethantmcgee.yubiauthn;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.annotation.JsonValue;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yubico.webauthn.FinishAssertionOptions;
 import com.yubico.webauthn.FinishRegistrationOptions;
 import com.yubico.webauthn.RegisteredCredential;
@@ -31,6 +33,7 @@ import org.junit.jupiter.api.Test;
 
 public class JavaWebauthnServerIntegrationTest {
   private final Faker faker = new Faker();
+  private final ObjectMapper jsonMapper = JsonUtil.getJsonMapper();
 
   public record CredentialCreationResponse(
       @JsonValue
@@ -44,7 +47,6 @@ public class JavaWebauthnServerIntegrationTest {
 
   @Test
   void testYubiauthnNoValidation() throws Exception {
-    final var jsonMapper = JsonUtil.getJsonMapper();
     final var emulator = Yubikey.YK_5C_NFC.build();
 
     final var domain = faker.internet().domainName();
@@ -106,7 +108,7 @@ public class JavaWebauthnServerIntegrationTest {
                 .userVerification(UserVerificationRequirement.REQUIRED)
                 .build());
 
-    final var assertResult = emulator.get(assertionOptions.toJson());
+    final var assertResult = emulator.get(getPublicKeyCredential(assertionOptions.toJson()));
 
     final var assertedCredential =
         rp.finishAssertion(
@@ -118,5 +120,10 @@ public class JavaWebauthnServerIntegrationTest {
                 .build());
 
     assertTrue(assertedCredential.isSuccess());
+  }
+
+  private String getPublicKeyCredential(String json) throws JsonProcessingException {
+    final var object = jsonMapper.readTree(json);
+    return object.get("publicKeyCredentialRequestOptions").toString();
   }
 }

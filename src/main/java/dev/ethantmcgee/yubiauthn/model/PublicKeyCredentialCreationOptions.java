@@ -2,6 +2,16 @@ package dev.ethantmcgee.yubiauthn.model;
 
 import java.util.List;
 
+/**
+ * Options for creating a new credential during WebAuthn registration.
+ *
+ * <p>This record models the PublicKeyCredentialCreationOptions dictionary from the Web Authentication API.
+ * It contains the parameters needed to guide the credential creation process, including relying party
+ * information, user information, challenge, and various options controlling the authenticator behavior.
+ *
+ * @see <a href="https://developer.mozilla.org/en-US/docs/Web/API/CredentialsContainer/create#publickey_object_structure">MDN - PublicKeyCredentialCreationOptions</a>
+ * @see <a href="https://www.w3.org/TR/webauthn-3/#dictdef-publickeycredentialcreationoptions">W3C WebAuthn - PublicKeyCredentialCreationOptions Dictionary</a>
+ */
 public record PublicKeyCredentialCreationOptions(
     AttestationType attestation,
     List<AttestationType> attestationFormats,
