@@ -34,18 +34,20 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
  * Cryptographic utility methods for WebAuthn operations.
  *
  * <p>This class provides essential cryptographic operations needed for WebAuthn authenticator
- * implementations, including key pair generation, COSE key encoding, digital signatures,
- * and attestation certificate generation.
+ * implementations, including key pair generation, COSE key encoding, digital signatures, and
+ * attestation certificate generation.
  *
- * <p>Supports multiple cryptographic algorithms as specified in the COSE (CBOR Object Signing
- * and Encryption) specification, including:
+ * <p>Supports multiple cryptographic algorithms as specified in the COSE (CBOR Object Signing and
+ * Encryption) specification, including:
+ *
  * <ul>
- *   <li>ECDSA with P-256, P-384, and P-521 curves</li>
- *   <li>RSA with SHA-256, SHA-384, and SHA-512</li>
- *   <li>EdDSA (Ed25519)</li>
+ *   <li>ECDSA with P-256, P-384, and P-521 curves
+ *   <li>RSA with SHA-256, SHA-384, and SHA-512
+ *   <li>EdDSA (Ed25519)
  * </ul>
  *
- * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-cryptographic-challenges">W3C WebAuthn - Cryptographic Challenges</a>
+ * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-cryptographic-challenges">W3C WebAuthn -
+ *     Cryptographic Challenges</a>
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc8152">RFC 8152 - COSE</a>
  * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-attestation">W3C WebAuthn - Attestation</a>
  */
@@ -59,14 +61,15 @@ public class CryptoUtils {
   /**
    * Generates a cryptographic key pair for the specified COSE algorithm.
    *
-   * <p>This method creates a new key pair suitable for use with WebAuthn credentials.
-   * The type of key pair (EC, RSA, or EdDSA) depends on the specified algorithm.
+   * <p>This method creates a new key pair suitable for use with WebAuthn credentials. The type of
+   * key pair (EC, RSA, or EdDSA) depends on the specified algorithm.
    *
    * @param algorithm The COSE algorithm identifier specifying which algorithm to use
    * @return A newly generated key pair appropriate for the algorithm
    * @throws NoSuchAlgorithmException If the algorithm is not available
    * @throws InvalidAlgorithmParameterException If the algorithm parameters are invalid
-   * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-public-key-easy">W3C WebAuthn - Public Key Credential</a>
+   * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-public-key-easy">W3C WebAuthn - Public Key
+   *     Credential</a>
    */
   public static KeyPair generateKeyPair(COSEAlgorithmIdentifier algorithm)
       throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
@@ -102,17 +105,19 @@ public class CryptoUtils {
   /**
    * Encodes a public key in COSE format according to RFC 8152.
    *
-   * <p>The encoded public key is suitable for inclusion in WebAuthn authenticator data
-   * as the credential public key. The format follows the COSE key structure with appropriate
-   * parameters for the key type (EC2 for elliptic curve keys).
+   * <p>The encoded public key is suitable for inclusion in WebAuthn authenticator data as the
+   * credential public key. The format follows the COSE key structure with appropriate parameters
+   * for the key type (EC2 for elliptic curve keys).
    *
    * @param publicKey The public key to encode (currently supports EC public keys)
    * @param algorithm The COSE algorithm identifier
    * @return The CBOR-encoded COSE key bytes
    * @throws IOException If CBOR encoding fails
    * @throws IllegalArgumentException If the public key type is unsupported
-   * @see <a href="https://datatracker.ietf.org/doc/html/rfc8152#section-13">RFC 8152 - COSE Key Objects</a>
-   * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-encoded-credPubKey-examples">W3C WebAuthn - Credential Public Key Examples</a>
+   * @see <a href="https://datatracker.ietf.org/doc/html/rfc8152#section-13">RFC 8152 - COSE Key
+   *     Objects</a>
+   * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-encoded-credPubKey-examples">W3C WebAuthn
+   *     - Credential Public Key Examples</a>
    */
   public static byte[] encodeCOSEPublicKey(PublicKey publicKey, COSEAlgorithmIdentifier algorithm)
       throws IOException {
@@ -162,17 +167,19 @@ public class CryptoUtils {
   }
 
   /**
-   * Creates a digital signature over the provided data using the specified private key and algorithm.
+   * Creates a digital signature over the provided data using the specified private key and
+   * algorithm.
    *
-   * <p>This method is used to generate signatures for WebAuthn assertion responses and
-   * attestation statements. The signature algorithm is determined by the COSE algorithm identifier.
+   * <p>This method is used to generate signatures for WebAuthn assertion responses and attestation
+   * statements. The signature algorithm is determined by the COSE algorithm identifier.
    *
    * @param data The data to sign
    * @param privateKey The private key to use for signing
    * @param algorithm The COSE algorithm identifier specifying the signature algorithm
    * @return The digital signature bytes
    * @throws Exception If signature generation fails
-   * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-op-get-assertion">W3C WebAuthn - Signature Generation</a>
+   * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-op-get-assertion">W3C WebAuthn - Signature
+   *     Generation</a>
    */
   public static byte[] sign(byte[] data, PrivateKey privateKey, COSEAlgorithmIdentifier algorithm)
       throws Exception {
@@ -196,15 +203,18 @@ public class CryptoUtils {
   /**
    * Generates a self-signed X.509 attestation certificate for WebAuthn attestation.
    *
-   * <p>This certificate is used in the attestation statement to provide cryptographic proof
-   * of the authenticator's characteristics. The certificate is self-signed and valid for one year.
+   * <p>This certificate is used in the attestation statement to provide cryptographic proof of the
+   * authenticator's characteristics. The certificate is self-signed and valid for one year.
    *
    * @param keyPair The key pair for which to generate the certificate
-   * @param subject The X.500 distinguished name for the certificate subject (e.g., "CN=MyAuthenticator")
+   * @param subject The X.500 distinguished name for the certificate subject (e.g.,
+   *     "CN=MyAuthenticator")
    * @return A self-signed X.509 certificate
    * @throws Exception If certificate generation fails
-   * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-attestation">W3C WebAuthn - Attestation</a>
-   * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-packed-attestation">W3C WebAuthn - Packed Attestation</a>
+   * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-attestation">W3C WebAuthn -
+   *     Attestation</a>
+   * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-packed-attestation">W3C WebAuthn - Packed
+   *     Attestation</a>
    */
   public static X509Certificate generateAttestationCertificate(KeyPair keyPair, String subject)
       throws Exception {
@@ -264,7 +274,8 @@ public class CryptoUtils {
    * @param credentialId The unique identifier for this credential
    * @param credentialPublicKey The COSE-encoded credential public key
    * @return The encoded attested credential data bytes
-   * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-attested-credential-data">W3C WebAuthn - Attested Credential Data</a>
+   * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-attested-credential-data">W3C WebAuthn -
+   *     Attested Credential Data</a>
    */
   public static byte[] createAttestedCredentialData(
       byte[] aaguid, byte[] credentialId, byte[] credentialPublicKey) {
@@ -280,8 +291,8 @@ public class CryptoUtils {
   /**
    * Generates a cryptographically random credential ID.
    *
-   * <p>This method creates a new 16-byte (128-bit) credential ID using a secure random
-   * number generator. The credential ID is used to uniquely identify a credential.
+   * <p>This method creates a new 16-byte (128-bit) credential ID using a secure random number
+   * generator. The credential ID is used to uniquely identify a credential.
    *
    * @return A 16-byte random credential ID
    * @see <a href="https://www.w3.org/TR/webauthn-3/#credential-id">W3C WebAuthn - Credential ID</a>

@@ -75,7 +75,6 @@ import lombok.Builder;
  *
  * @see dev.ethantmcgee.yubiauthn.emulator.Yubikey Yubikey for pre-configured emulator builders
  */
-
 @Builder(toBuilder = true, buildMethodName = "buildInternal")
 public class YubiKeyEmulator {
   private final ObjectMapper jsonMapper = JsonUtil.getJsonMapper();
@@ -108,9 +107,7 @@ public class YubiKeyEmulator {
   @Builder.Default private boolean backupEligible = false;
   @Builder.Default private boolean backupState = false;
 
-  /**
-   * Builder class for YubiKeyEmulator with proper initialization and validation.
-   */
+  /** Builder class for YubiKeyEmulator with proper initialization and validation. */
   public static class YubiKeyEmulatorBuilder {
     public YubiKeyEmulator build() throws InvalidConfigurationException, CryptoException {
       YubiKeyEmulator res = buildInternal();
@@ -152,8 +149,7 @@ public class YubiKeyEmulator {
     try {
       UUID.fromString(aaguid);
     } catch (IllegalArgumentException e) {
-      throw new InvalidConfigurationException(
-          "AAGUID must be a valid UUID format: " + aaguid, e);
+      throw new InvalidConfigurationException("AAGUID must be a valid UUID format: " + aaguid, e);
     }
   }
 
@@ -178,8 +174,7 @@ public class YubiKeyEmulator {
    * @throws CryptoException If cryptographic operations fail
    */
   public PublicKeyCredential<RegistrationResponse> create(
-      PublicKeyCredentialCreationOptions options)
-          throws Exception {
+      PublicKeyCredentialCreationOptions options) throws Exception {
     validateAAGUID();
 
     if (supportedAttachmentTypes.isEmpty()) {
@@ -382,7 +377,7 @@ public class YubiKeyEmulator {
    * @throws CryptoException If cryptographic operations fail
    */
   public PublicKeyCredential<AssertionResponse> get(PublicKeyCredentialAssertionOptions options)
-          throws CredentialNotFoundException, CryptoException, JsonProcessingException {
+      throws CredentialNotFoundException, CryptoException, JsonProcessingException {
     StoredCredential credential = findMatchingCredential(options);
 
     if (credential == null) {
@@ -520,9 +515,7 @@ public class YubiKeyEmulator {
    * @return List of credentials for the specified RP ID
    */
   public List<StoredCredential> getCredentialsByRpId(String rpId) {
-    return credentials.values().stream()
-        .filter(cred -> cred.rpId().equals(rpId))
-        .toList();
+    return credentials.values().stream().filter(cred -> cred.rpId().equals(rpId)).toList();
   }
 
   /**
@@ -544,9 +537,7 @@ public class YubiKeyEmulator {
     return Map.copyOf(credentials);
   }
 
-  /**
-   * Clears all stored credentials and resets the signature counter.
-   */
+  /** Clears all stored credentials and resets the signature counter. */
   public void reset() {
     credentials.clear();
     signatureCounter = 0;

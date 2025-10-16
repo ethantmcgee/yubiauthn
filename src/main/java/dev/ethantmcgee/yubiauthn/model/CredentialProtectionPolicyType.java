@@ -7,11 +7,13 @@ import lombok.RequiredArgsConstructor;
 /**
  * Defines the credential protection policy for the credProtect extension.
  *
- * <p>This enum specifies the level of user verification required to use a credential.
- * It is part of the FIDO2 credProtect extension which allows relying parties to
- * specify how credentials should be protected.
+ * <p>This enum specifies the level of user verification required to use a credential. It is part of
+ * the FIDO2 credProtect extension which allows relying parties to specify how credentials should be
+ * protected.
  *
- * @see <a href="https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-errata-20220621.html#sctn-credProtect-extension">FIDO2 - credProtect Extension</a>
+ * @see <a
+ *     href="https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-errata-20220621.html#sctn-credProtect-extension">FIDO2
+ *     - credProtect Extension</a>
  */
 @Getter
 @RequiredArgsConstructor

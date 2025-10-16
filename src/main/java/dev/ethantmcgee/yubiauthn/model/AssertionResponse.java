@@ -5,11 +5,14 @@ import java.util.List;
 /**
  * Represents the authenticator's response to an authentication assertion request.
  *
- * <p>This record models the AuthenticatorAssertionResponse interface from the Web Authentication API.
- * It contains the signature and related data created during authentication.
+ * <p>This record models the AuthenticatorAssertionResponse interface from the Web Authentication
+ * API. It contains the signature and related data created during authentication.
  *
- * @see <a href="https://developer.mozilla.org/en-US/docs/Web/API/AuthenticatorAssertionResponse">MDN - AuthenticatorAssertionResponse</a>
- * @see <a href="https://www.w3.org/TR/webauthn-3/#iface-authenticatorassertionresponse">W3C WebAuthn - AuthenticatorAssertionResponse Interface</a>
+ * @see <a
+ *     href="https://developer.mozilla.org/en-US/docs/Web/API/AuthenticatorAssertionResponse">MDN -
+ *     AuthenticatorAssertionResponse</a>
+ * @see <a href="https://www.w3.org/TR/webauthn-3/#iface-authenticatorassertionresponse">W3C
+ *     WebAuthn - AuthenticatorAssertionResponse Interface</a>
  */
 public record AssertionResponse(
     String clientDataJSON,

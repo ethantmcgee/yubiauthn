@@ -10,23 +10,27 @@ import lombok.Getter;
 /**
  * Represents the authenticator data structure used in WebAuthn ceremonies.
  *
- * <p>This class models the authenticator data structure defined in the Web Authentication API.
- * It contains information about the authenticator's state, including the RP ID hash, flags
- * indicating various states (user presence, user verification, etc.), signature counter,
- * and optional attested credential data and extensions.
+ * <p>This class models the authenticator data structure defined in the Web Authentication API. It
+ * contains information about the authenticator's state, including the RP ID hash, flags indicating
+ * various states (user presence, user verification, etc.), signature counter, and optional attested
+ * credential data and extensions.
  *
  * <p>The flags byte contains the following bits:
+ *
  * <ul>
- *   <li>UP (0x01): User Present</li>
- *   <li>UV (0x04): User Verified</li>
- *   <li>BE (0x08): Backup Eligible</li>
- *   <li>BS (0x10): Backup State</li>
- *   <li>AT (0x40): Attested Credential Data included</li>
- *   <li>ED (0x80): Extension Data included</li>
+ *   <li>UP (0x01): User Present
+ *   <li>UV (0x04): User Verified
+ *   <li>BE (0x08): Backup Eligible
+ *   <li>BS (0x10): Backup State
+ *   <li>AT (0x40): Attested Credential Data included
+ *   <li>ED (0x80): Extension Data included
  * </ul>
  *
- * @see <a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Authentication_API/Authenticator_data">MDN - Authenticator Data</a>
- * @see <a href="https://www.w3.org/TR/webauthn-3/#authenticator-data">W3C WebAuthn - Authenticator Data</a>
+ * @see <a
+ *     href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Authentication_API/Authenticator_data">MDN
+ *     - Authenticator Data</a>
+ * @see <a href="https://www.w3.org/TR/webauthn-3/#authenticator-data">W3C WebAuthn - Authenticator
+ *     Data</a>
  */
 @Getter
 public class AuthenticatorData {

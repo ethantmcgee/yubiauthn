@@ -6,12 +6,15 @@ import dev.ethantmcgee.yubiauthn.util.JsonUtil;
 /**
  * Represents a credential created or used during a WebAuthn ceremony.
  *
- * <p>This record models the PublicKeyCredential interface from the Web Authentication API.
- * It contains information about the credential including its ID, type, and authenticator response.
+ * <p>This record models the PublicKeyCredential interface from the Web Authentication API. It
+ * contains information about the credential including its ID, type, and authenticator response.
  *
- * @param <T> The type of response (either {@link RegistrationResponse} or {@link AssertionResponse})
- * @see <a href="https://developer.mozilla.org/en-US/docs/Web/API/PublicKeyCredential">MDN - PublicKeyCredential</a>
- * @see <a href="https://www.w3.org/TR/webauthn-3/#iface-pkcredential">W3C WebAuthn - PublicKeyCredential Interface</a>
+ * @param <T> The type of response (either {@link RegistrationResponse} or {@link
+ *     AssertionResponse})
+ * @see <a href="https://developer.mozilla.org/en-US/docs/Web/API/PublicKeyCredential">MDN -
+ *     PublicKeyCredential</a>
+ * @see <a href="https://www.w3.org/TR/webauthn-3/#iface-pkcredential">W3C WebAuthn -
+ *     PublicKeyCredential Interface</a>
  */
 public record PublicKeyCredential<T>(
     AuthenticatorAttachmentType authenticatorAttachment,
