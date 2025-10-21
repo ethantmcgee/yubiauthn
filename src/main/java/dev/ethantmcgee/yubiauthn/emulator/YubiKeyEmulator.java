@@ -79,7 +79,7 @@ import lombok.Builder;
 @Builder(toBuilder = true, buildMethodName = "buildInternal")
 public class YubiKeyEmulator {
   private final ObjectMapper jsonMapper = JsonUtil.getJsonMapper();
-  private final ObjectMapper cborMapper = new ObjectMapper(new CBORFactory());
+  private final ObjectMapper cborMapper = createCborMapper();
   private final Map<String, StoredCredential> credentials = new HashMap<>();
 
   @Builder.Default private String aaguid = null;
@@ -109,6 +109,27 @@ public class YubiKeyEmulator {
   @Builder.Default private boolean backupState = false;
 
   @Builder.Default private AttestationFormat attestationFormat = AttestationFormat.PACKED;
+
+  /**
+   * Creates a properly configured ObjectMapper for CBOR encoding.
+   *
+   * <p>This method configures Jackson's CBORFactory to ensure compatibility with WebAuthn
+   * specification requirements. WebAuthn requires canonical CBOR encoding with definite-length
+   * maps and arrays (not indefinite-length).
+   *
+   * @return A configured ObjectMapper for CBOR encoding with definite-length encoding
+   */
+  private static ObjectMapper createCborMapper() {
+    // Configure CBOR factory to use definite-length encoding (required by WebAuthn spec)
+    // By default, Jackson writes definite-length maps when it can determine the size upfront
+    CBORFactory cborFactory =
+        new CBORFactory()
+            .disable(com.fasterxml.jackson.dataformat.cbor.CBORGenerator.Feature.WRITE_TYPE_HEADER);
+    ObjectMapper mapper = new ObjectMapper(cborFactory);
+    // Ensure we write minimal integers for compact encoding
+    mapper.enable(com.fasterxml.jackson.core.JsonGenerator.Feature.WRITE_BIGDECIMAL_AS_PLAIN);
+    return mapper;
+  }
 
   /** Builder class for YubiKeyEmulator with proper initialization and validation. */
   public static class YubiKeyEmulatorBuilder {
@@ -549,39 +570,148 @@ public class YubiKeyEmulator {
     return credentials.size();
   }
 
+  /**
+   * Manually encodes attestation object to CBOR with definite-length encoding.
+   *
+   * <p>Jackson CBOR uses indefinite-length maps by default, which violates the WebAuthn spec
+   * requirement for canonical CBOR. This method manually encodes the attestation object using
+   * definite-length maps (0xAx prefix) instead of indefinite-length maps (0xBF prefix).
+   *
+   * @param attestationObject The attestation object to encode
+   * @return CBOR-encoded bytes with definite-length maps
+   * @throws Exception If encoding fails
+   */
   private byte[] encodeAttestationObject(AttestationObject attestationObject) throws Exception {
-    Map<String, Object> attestationMap = new HashMap<>();
-    attestationMap.put("fmt", attestationObject.fmt());
-    attestationMap.put("authData", attestationObject.authData().encode());
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
 
-    Map<String, Object> attStmtMap = new HashMap<>();
+    // Outer map: {fmt, authData, attStmt} = 3 items
+    out.write(0xA3); // Map with 3 items (definite-length)
 
-    // For "none" attestation, attStmt should be an empty map
-    if (!attestationObject.fmt().equals(AttestationFormat.NONE.getValue())) {
-      if (attestationObject.attStmt().sig() != null) {
-        attStmtMap.put("sig", attestationObject.attStmt().sig());
-      }
+    // Key: "fmt" (3 chars)
+    out.write(0x63); // Text string, 3 bytes
+    out.write("fmt".getBytes(StandardCharsets.UTF_8));
+    // Value: format string
+    byte[] fmtBytes = attestationObject.fmt().getBytes(StandardCharsets.UTF_8);
+    writeCBORTextString(out, fmtBytes);
 
-      if (attestationObject.attStmt().alg() != null) {
-        attStmtMap.put("alg", attestationObject.attStmt().alg().getValue());
-      }
+    // Key: "authData"
+    out.write(0x68); // Text string, 8 bytes
+    out.write("authData".getBytes(StandardCharsets.UTF_8));
+    // Value: auth data bytes
+    byte[] authDataBytes = attestationObject.authData().encode();
+    writeCBORByteString(out, authDataBytes);
 
-      if (attestationObject.attStmt().x5c() != null
-          && attestationObject.attStmt().x5c().length > 0) {
-        attStmtMap.put("x5c", attestationObject.attStmt().x5c());
-      }
+    // Key: "attStmt"
+    out.write(0x67); // Text string, 7 bytes
+    out.write("attStmt".getBytes(StandardCharsets.UTF_8));
+    // Value: attestation statement map
+    writeAttStmtMap(out, attestationObject);
+
+    return out.toByteArray();
+  }
+
+  private void writeAttStmtMap(ByteArrayOutputStream out, AttestationObject attestationObject)
+      throws Exception {
+    if (attestationObject.fmt().equals(AttestationFormat.NONE.getValue())) {
+      // Empty map for "none" attestation
+      out.write(0xA0); // Map with 0 items
+      return;
     }
 
-    attestationMap.put("attStmt", attStmtMap);
+    // Count the number of fields in attStmt
+    int fieldCount = 0;
+    if (attestationObject.attStmt().sig() != null) fieldCount++;
+    if (attestationObject.attStmt().x5c() != null
+        && attestationObject.attStmt().x5c().length > 0) fieldCount++;
+    if (attestationObject.attStmt().alg() != null) fieldCount++;
 
-    return cborMapper.writeValueAsBytes(attestationMap);
+    // Write map header with field count
+    out.write(0xA0 | fieldCount); // Map with fieldCount items
+
+    // Write "alg" if present (write first for packed format)
+    if (attestationObject.attStmt().alg() != null) {
+      out.write(0x63); // Text string, 3 bytes
+      out.write("alg".getBytes(StandardCharsets.UTF_8));
+      writeCBORInt(out, attestationObject.attStmt().alg().getValue());
+    }
+
+    // Write "sig" if present
+    if (attestationObject.attStmt().sig() != null) {
+      out.write(0x63); // Text string, 3 bytes
+      out.write("sig".getBytes(StandardCharsets.UTF_8));
+      writeCBORByteString(out, attestationObject.attStmt().sig());
+    }
+
+    // Write "x5c" if present
+    if (attestationObject.attStmt().x5c() != null
+        && attestationObject.attStmt().x5c().length > 0) {
+      out.write(0x63); // Text string, 3 bytes
+      out.write("x5c".getBytes(StandardCharsets.UTF_8));
+      // Write array of certificates
+      out.write(0x80 | attestationObject.attStmt().x5c().length); // Array with length
+      for (byte[] cert : attestationObject.attStmt().x5c()) {
+        writeCBORByteString(out, cert);
+      }
+    }
+  }
+
+  private void writeCBORTextString(ByteArrayOutputStream out, byte[] bytes) throws Exception {
+    if (bytes.length < 24) {
+      out.write(0x60 | bytes.length);
+    } else if (bytes.length < 256) {
+      out.write(0x78);
+      out.write(bytes.length);
+    } else {
+      out.write(0x79);
+      out.write((bytes.length >> 8) & 0xFF);
+      out.write(bytes.length & 0xFF);
+    }
+    out.write(bytes);
+  }
+
+  private void writeCBORByteString(ByteArrayOutputStream out, byte[] bytes) throws Exception {
+    if (bytes.length < 24) {
+      out.write(0x40 | bytes.length);
+    } else if (bytes.length < 256) {
+      out.write(0x58);
+      out.write(bytes.length);
+    } else {
+      out.write(0x59);
+      out.write((bytes.length >> 8) & 0xFF);
+      out.write(bytes.length & 0xFF);
+    }
+    out.write(bytes);
+  }
+
+  private void writeCBORInt(ByteArrayOutputStream out, int value) throws Exception {
+    if (value >= 0 && value < 24) {
+      out.write(value);
+    } else if (value >= 0 && value < 256) {
+      out.write(0x18);
+      out.write(value);
+    } else if (value >= -24 && value < 0) {
+      out.write(0x20 | (-1 - value));
+    } else if (value < 0 && value >= -256) {
+      out.write(0x38);
+      out.write(-1 - value);
+    } else if (value >= 0) {
+      out.write(0x19);
+      out.write((value >> 8) & 0xFF);
+      out.write(value & 0xFF);
+    } else {
+      out.write(0x39);
+      int absValue = -1 - value;
+      out.write((absValue >> 8) & 0xFF);
+      out.write(absValue & 0xFF);
+    }
   }
 
   private byte[] getExtensionBytes(Integer credentialProtectionPolicy)
       throws JsonProcessingException {
     byte[] extensionsBytes = null;
     if (supportsCredProtect && credentialProtectionPolicy != null) {
-      Map<String, Object> extensionsMap = new HashMap<>();
+      // Use LinkedHashMap to ensure definite-length CBOR encoding
+      Map<String, Object> extensionsMap = new java.util.LinkedHashMap<>();
       extensionsMap.put("credProtect", credentialProtectionPolicy);
       extensionsBytes = cborMapper.writeValueAsBytes(extensionsMap);
     }

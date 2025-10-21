@@ -52,10 +52,30 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
  * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-attestation">W3C WebAuthn - Attestation</a>
  */
 public class CryptoUtils {
-  private static final ObjectMapper cborMapper = new ObjectMapper(new CBORFactory());
+  private static final ObjectMapper cborMapper = createCborMapper();
 
   static {
     Security.addProvider(new BouncyCastleProvider());
+  }
+
+  /**
+   * Creates a properly configured ObjectMapper for CBOR encoding.
+   *
+   * <p>This method configures Jackson's CBORFactory to ensure compatibility with WebAuthn
+   * specification requirements. WebAuthn requires canonical CBOR encoding with definite-length
+   * maps and arrays (not indefinite-length).
+   *
+   * @return A configured ObjectMapper for CBOR encoding with definite-length encoding
+   */
+  private static ObjectMapper createCborMapper() {
+    // Configure CBOR factory to use definite-length encoding (required by WebAuthn spec)
+    // This prevents the use of CBOR indefinite-length maps (0xBF...0xFF) and arrays
+    CBORFactory cborFactory =
+        CBORFactory.builder()
+            .disable(com.fasterxml.jackson.dataformat.cbor.CBORGenerator.Feature.WRITE_TYPE_HEADER)
+            .enable(com.fasterxml.jackson.dataformat.cbor.CBORGenerator.Feature.WRITE_MINIMAL_INTS)
+            .build();
+    return new ObjectMapper(cborFactory);
   }
 
   /**
