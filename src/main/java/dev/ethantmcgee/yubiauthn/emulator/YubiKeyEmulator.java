@@ -568,7 +568,7 @@ public class YubiKeyEmulator {
 
       if (attestationObject.attStmt().x5c() != null
           && attestationObject.attStmt().x5c().length > 0) {
-        attStmtMap.put("x5c", Arrays.asList(attestationObject.attStmt().x5c()));
+        attStmtMap.put("x5c", attestationObject.attStmt().x5c());
       }
     }
 
