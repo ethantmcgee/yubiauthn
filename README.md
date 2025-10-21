@@ -15,7 +15,7 @@ A Java 21 library that emulates a YubiKey NFC 5C hardware authenticator, providi
 <dependency>
     <groupId>dev.ethantmcgee</groupId>
     <artifactId>yubiauthn</artifactId>
-    <version>1.0.2</version>
+    <version>1.0.3</version>
 </dependency>
 ```
 

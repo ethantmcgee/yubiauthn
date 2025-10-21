@@ -827,8 +827,10 @@ public class YubiKeyEmulator {
 
     // Public key starts after credential ID - it's in COSE format currently
     int publicKeyStart = credIdStart + credIdLength;
-    byte[] credentialPublicKeyCOSE =
-        Arrays.copyOfRange(authDataBytes, publicKeyStart, authDataBytes.length);
+
+    // Extract only the COSE public key CBOR value (not including any following extensions)
+    // This uses a CBOR parser to determine the exact length of the COSE key structure
+    byte[] credentialPublicKeyCOSE = CryptoUtils.extractCborValue(authDataBytes, publicKeyStart);
 
     // FIDO U2F requires the public key in raw format: 0x04 || X || Y
     // We need to extract X and Y from the COSE public key and convert to U2F format

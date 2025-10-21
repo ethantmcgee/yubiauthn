@@ -372,6 +372,37 @@ public class CryptoUtils {
   }
 
   /**
+   * Extracts a single CBOR-encoded value from a byte array starting at the specified offset.
+   *
+   * <p>This method parses the CBOR structure to determine the exact length of a single CBOR value,
+   * which is essential when extracting COSE public keys from authenticator data that may contain
+   * additional data (like extensions) after the public key.
+   *
+   * @param data The byte array containing CBOR data
+   * @param offset The offset where the CBOR value starts
+   * @return The extracted CBOR value bytes (including CBOR structure)
+   * @throws IOException If CBOR parsing fails or data is malformed
+   */
+  public static byte[] extractCborValue(byte[] data, int offset) throws IOException {
+    // Use a JsonParser (CBOR implementation) to determine the exact length of the CBOR value
+    com.fasterxml.jackson.core.JsonParser parser =
+        cborMapper.getFactory().createParser(data, offset, data.length - offset);
+
+    // Read one complete token/value to advance the parser
+    parser.nextToken();
+    // Skip children if this is a structured value (map, array)
+    parser.skipChildren();
+
+    // The current location tells us where the CBOR value ends
+    long bytesConsumed = parser.getCurrentLocation().getByteOffset();
+
+    parser.close();
+
+    // Extract exactly those bytes
+    return java.util.Arrays.copyOfRange(data, offset, offset + (int) bytesConsumed);
+  }
+
+  /**
    * Helper method to get a value from a map that may have integer or string keys.
    *
    * @param map The map
