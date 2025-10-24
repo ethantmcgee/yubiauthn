@@ -17,12 +17,9 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum AttestationFormat {
+  /** The packed attestation statement format. */
   PACKED("packed"),
-  TPM("tpm"),
-  ANDROID_KEY("android-key"),
-  ANDROID_SAFETY_NET("android-safetynet"),
-  FIDO_U2F("fido-u2f"),
-  APPLE("apple"),
+  /** No attestation statement is provided. */
   NONE("none");
 
   @JsonValue private final String value;

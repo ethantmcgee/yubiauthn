@@ -16,7 +16,10 @@ package dev.ethantmcgee.yubiauthn.model;
  *     WebAuthn - PublicKeyCredentialUserEntity Dictionary</a>
  */
 public record User(String displayName, String id, String name) {
-  // validate that the assertion response conforms to specification
+  /**
+   * Canonical constructor that validates the user information conforms to the WebAuthn
+   * specification.
+   */
   public User {
     if (displayName == null) {
       throw new IllegalArgumentException("displayName cannot be null");

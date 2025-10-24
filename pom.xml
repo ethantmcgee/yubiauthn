@@ -6,7 +6,7 @@
 
     <groupId>dev.ethantmcgee</groupId>
     <artifactId>yubiauthn</artifactId>
-    <version>1.0.3</version>
+    <version>1.0.4</version>
     <packaging>jar</packaging>
 
     <name>YubiAuthn</name>
@@ -72,9 +72,9 @@
 
         <!-- CBOR encoding/decoding -->
         <dependency>
-            <groupId>com.fasterxml.jackson.dataformat</groupId>
-            <artifactId>jackson-dataformat-cbor</artifactId>
-            <version>2.18.2</version>
+            <groupId>com.upokecenter</groupId>
+            <artifactId>cbor</artifactId>
+            <version>4.5.2</version>
         </dependency>
 
         <!-- Testing -->

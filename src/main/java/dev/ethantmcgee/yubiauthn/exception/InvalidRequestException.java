@@ -1,23 +1,18 @@
 package dev.ethantmcgee.yubiauthn.exception;
 
-/** Thrown when a request does not meet the authenticator's requirements or constraints. */
-public class InvalidRequestException extends AuthenticatorException {
+/**
+ * Exception thrown when a WebAuthn request does not meet the required specifications.
+ *
+ * <p>This exception is thrown when registration or authentication requests contain invalid data,
+ * missing required fields, or violate WebAuthn protocol requirements.
+ */
+public class InvalidRequestException extends RuntimeException {
   /**
-   * Constructs a new invalid request exception with the specified detail message.
+   * Constructs a new InvalidRequestException with the specified detail message.
    *
-   * @param message the detail message
+   * @param message the detail message explaining what is invalid about the request
    */
   public InvalidRequestException(String message) {
     super(message);
-  }
-
-  /**
-   * Constructs a new invalid request exception with the specified detail message and cause.
-   *
-   * @param message the detail message
-   * @param cause the cause of this exception
-   */
-  public InvalidRequestException(String message, Throwable cause) {
-    super(message, cause);
   }
 }

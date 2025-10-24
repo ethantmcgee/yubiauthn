@@ -18,8 +18,11 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum CredentialProtectionPolicyType {
+  /** User verification is optional. */
   OPTIONAL("userVerificationOptional", 1),
+  /** User verification is optional with credential ID list. */
   WITH_ID_LIST("userVerificationOptionalWithCredentialIDList", 2),
+  /** User verification is required. */
   REQUIRED("userVerificationRequired", 3);
 
   @JsonValue private final String value;

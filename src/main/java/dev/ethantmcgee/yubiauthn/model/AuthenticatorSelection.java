@@ -23,7 +23,10 @@ public record AuthenticatorSelection(
     Boolean requireResidentKey,
     ResidentKeyType residentKey,
     UserVerificationType userVerification) {
-  // validate that the assertion response conforms to specification
+  /**
+   * Canonical constructor that validates and normalizes the authenticator selection criteria
+   * according to the WebAuthn specification.
+   */
   public AuthenticatorSelection {
     if (requireResidentKey == null) {
       requireResidentKey = false;

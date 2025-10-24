@@ -20,7 +20,9 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum AuthenticatorAttachmentType {
+  /** Platform authenticator attached to the client device. */
   PLATFORM("platform"),
+  /** Removable cross-platform authenticator. */
   CROSS_PLATFORM("cross-platform");
 
   @JsonValue private final String value;

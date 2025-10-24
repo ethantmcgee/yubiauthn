@@ -20,8 +20,11 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum UserVerificationType {
+  /** User verification is discouraged. */
   DISCOURAGED("discouraged"),
+  /** User verification is preferred but not required. */
   PREFERRED("preferred"),
+  /** User verification is required. */
   REQUIRED("required");
 
   @JsonValue private final String value;

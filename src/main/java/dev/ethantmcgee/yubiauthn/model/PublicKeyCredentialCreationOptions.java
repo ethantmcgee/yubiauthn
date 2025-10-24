@@ -39,7 +39,10 @@ public record PublicKeyCredentialCreationOptions(
     RelyingParty rp,
     Integer timeout,
     User user) {
-  // validate that the assertion response conforms to specification
+  /**
+   * Canonical constructor that validates and normalizes the credential creation options according
+   * to the WebAuthn specification.
+   */
   public PublicKeyCredentialCreationOptions {
     if (attestation == null) {
       attestation = AttestationType.NONE;

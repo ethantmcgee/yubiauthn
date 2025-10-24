@@ -19,7 +19,10 @@ import java.util.List;
  */
 public record PublicKeyCredentialRef(
     String id, List<TransportType> transports, CredentialType type) {
-  // validate that the assertion response conforms to specification
+  /**
+   * Canonical constructor that validates the credential descriptor conforms to the WebAuthn
+   * specification.
+   */
   public PublicKeyCredentialRef {
     if (id == null) {
       throw new IllegalArgumentException("id cannot be null");

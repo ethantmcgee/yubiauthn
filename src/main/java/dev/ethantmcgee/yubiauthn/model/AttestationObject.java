@@ -17,10 +17,13 @@ package dev.ethantmcgee.yubiauthn.model;
  *     Object</a>
  */
 public record AttestationObject(
-    String fmt, AuthenticatorData authData, AttestationStatement attStmt) {
-  // validate that the assertion response conforms to specification
+    AttestationFormat fmt, AuthenticatorData authData, AttestationStatement attStmt) {
+  /**
+   * Canonical constructor that validates the attestation object conforms to the WebAuthn
+   * specification.
+   */
   public AttestationObject {
-    if (fmt == null || fmt.isBlank()) {
+    if (fmt == null) {
       throw new IllegalArgumentException("Format must not be null or blank");
     }
     if (authData == null) {
