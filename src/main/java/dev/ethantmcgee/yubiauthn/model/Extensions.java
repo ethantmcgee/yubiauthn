@@ -26,7 +26,10 @@ public record Extensions(
     @JsonAlias({"enforceCredProtect", "enforceCredentialProtectionPolicy"})
         Boolean enforceCredentialProtectionPolicy,
     Boolean minPinLength) {
-  // validate that the assertion response conforms to specification
+  /**
+   * Canonical constructor that validates and normalizes extension inputs according to the WebAuthn
+   * specification.
+   */
   public Extensions {
     if (credProps == null) {
       credProps = false;

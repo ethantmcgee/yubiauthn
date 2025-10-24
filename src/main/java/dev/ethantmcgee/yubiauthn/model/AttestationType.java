@@ -19,9 +19,13 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum AttestationType {
+  /** No attestation is requested. */
   NONE("none"),
+  /** Direct attestation is requested from the authenticator. */
   DIRECT("direct"),
+  /** Enterprise attestation is requested. */
   ENTERPRISE("enterprise"),
+  /** Indirect attestation is requested via an anonymization CA. */
   INDIRECT("indirect");
 
   @JsonValue private final String value;

@@ -15,7 +15,10 @@ package dev.ethantmcgee.yubiauthn.model;
  *     - PublicKeyCredentialRpEntity Dictionary</a>
  */
 public record RelyingParty(String id, String name) {
-  // validate that the assertion response conforms to specification
+  /**
+   * Canonical constructor that validates the relying party information conforms to the WebAuthn
+   * specification.
+   */
   public RelyingParty {
     if (id == null) {
       throw new IllegalArgumentException("id cannot be null");

@@ -46,6 +46,19 @@ import lombok.Builder;
 import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.operator.OperatorCreationException;
 
+/**
+ * Emulates a FIDO2/WebAuthn authenticator with configurable characteristics.
+ *
+ * <p>This class provides a software implementation of a FIDO2 authenticator that can be used for
+ * testing WebAuthn flows without requiring physical hardware. It supports credential creation
+ * (registration) and authentication assertion operations.
+ *
+ * <p>The emulator can be configured to mimic specific authenticator models (like YubiKey 5C NFC)
+ * with their actual capabilities, including supported algorithms, transport types, and extension
+ * support.
+ *
+ * @see Yubikey for factory methods creating pre-configured emulator instances
+ */
 @Builder(toBuilder = true, buildMethodName = "buildInternal")
 public class YubiKeyEmulator {
   private final ObjectMapper jsonMapper = JsonUtil.getJsonMapper();
@@ -79,7 +92,19 @@ public class YubiKeyEmulator {
 
   @Builder.Default private AttestationFormat attestationFormat = AttestationFormat.PACKED;
 
+  /**
+   * Builder class for constructing YubiKeyEmulator instances.
+   *
+   * <p>This builder provides a fluent API for configuring all aspects of the emulator, including
+   * cryptographic capabilities, supported features, and device characteristics.
+   */
   public static class YubiKeyEmulatorBuilder {
+    /**
+     * Builds and initializes a YubiKeyEmulator instance.
+     *
+     * @return a fully initialized YubiKeyEmulator
+     * @throws RuntimeException if initialization fails
+     */
     public YubiKeyEmulator build() {
       try {
         YubiKeyEmulator res = buildInternal();
@@ -106,10 +131,29 @@ public class YubiKeyEmulator {
     }
   }
 
+  /**
+   * Creates a new credential from JSON-encoded PublicKeyCredentialCreationOptions.
+   *
+   * @param json the JSON string containing credential creation options
+   * @return a PublicKeyCredential containing the registration response
+   * @throws Exception if credential creation fails or JSON parsing fails
+   */
   public PublicKeyCredential<RegistrationResponse> create(String json) throws Exception {
     return create(jsonMapper.readValue(json, PublicKeyCredentialCreationOptions.class));
   }
 
+  /**
+   * Creates a new credential based on the provided options.
+   *
+   * <p>This method emulates the authenticatorMakeCredential operation as defined in the WebAuthn
+   * specification. It generates a new key pair, creates an attestation object, and returns a
+   * credential that can be registered with a relying party.
+   *
+   * @param options the credential creation options from the relying party
+   * @return a PublicKeyCredential containing the registration response
+   * @throws Exception if credential creation fails due to invalid configuration or unsupported
+   *     options
+   */
   public PublicKeyCredential<RegistrationResponse> create(
       PublicKeyCredentialCreationOptions options) throws Exception {
     if (aaguid == null) {
@@ -319,10 +363,28 @@ public class YubiKeyEmulator {
     return attestationMap.EncodeToBytes();
   }
 
+  /**
+   * Performs authentication assertion from JSON-encoded PublicKeyCredentialRequestOptions.
+   *
+   * @param json the JSON string containing credential request options
+   * @return a PublicKeyCredential containing the assertion response
+   * @throws Exception if authentication fails or JSON parsing fails
+   */
   public PublicKeyCredential<AssertionResponse> get(String json) throws Exception {
     return get(jsonMapper.readValue(json, PublicKeyCredentialAssertionOptions.class));
   }
 
+  /**
+   * Performs authentication assertion based on the provided options.
+   *
+   * <p>This method emulates the authenticatorGetAssertion operation as defined in the WebAuthn
+   * specification. It finds a matching credential, generates a signature, and returns an assertion
+   * that can be verified by the relying party.
+   *
+   * @param options the credential request options from the relying party
+   * @return a PublicKeyCredential containing the assertion response
+   * @throws Exception if no matching credential is found or assertion generation fails
+   */
   public PublicKeyCredential<AssertionResponse> get(PublicKeyCredentialAssertionOptions options)
       throws Exception {
     StoredCredential credential = findMatchingCredential(options);

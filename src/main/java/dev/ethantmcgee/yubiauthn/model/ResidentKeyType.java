@@ -20,8 +20,11 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum ResidentKeyType {
+  /** Resident key creation is discouraged. */
   DISCOURAGED("discouraged"),
+  /** Resident key creation is preferred but not required. */
   PREFERRED("preferred"),
+  /** Resident key creation is required. */
   REQUIRED("required");
 
   @JsonValue private final String value;

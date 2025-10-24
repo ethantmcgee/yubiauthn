@@ -17,7 +17,9 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum AttestationFormat {
+  /** The packed attestation statement format. */
   PACKED("packed"),
+  /** No attestation statement is provided. */
   NONE("none");
 
   @JsonValue private final String value;

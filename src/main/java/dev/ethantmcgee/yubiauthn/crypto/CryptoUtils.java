@@ -32,11 +32,27 @@ import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 
+/**
+ * Utility class providing cryptographic operations for WebAuthn credential creation and
+ * authentication.
+ *
+ * <p>This class offers methods for key pair generation, digital signatures, certificate generation,
+ * and COSE key encoding as required by the WebAuthn specification. It uses Bouncy Castle as the
+ * cryptographic provider.
+ */
 public class CryptoUtils {
   static {
     Security.addProvider(new BouncyCastleProvider());
   }
 
+  /**
+   * Generates a key pair for the specified cryptographic algorithm.
+   *
+   * @param algorithm the COSE algorithm identifier specifying which key type to generate
+   * @return a newly generated key pair suitable for the specified algorithm
+   * @throws NoSuchAlgorithmException if the algorithm is not supported
+   * @throws InvalidAlgorithmParameterException if the algorithm parameters are invalid
+   */
   public static KeyPair generateKeyPair(COSEAlgorithmIdentifier algorithm)
       throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
     return switch (algorithm) {
@@ -67,6 +83,15 @@ public class CryptoUtils {
     return keyGen.generateKeyPair();
   }
 
+  /**
+   * Signs data using the specified private key and algorithm.
+   *
+   * @param data the data to sign
+   * @param privateKey the private key to use for signing
+   * @param algorithm the COSE algorithm identifier specifying the signature algorithm
+   * @return the digital signature
+   * @throws Exception if signing fails
+   */
   public static byte[] sign(byte[] data, PrivateKey privateKey, COSEAlgorithmIdentifier algorithm)
       throws Exception {
     String signatureAlgorithm =
@@ -86,6 +111,17 @@ public class CryptoUtils {
     return signature.sign();
   }
 
+  /**
+   * Generates an X.509 attestation certificate for the authenticator.
+   *
+   * @param keyPair the key pair to include in the certificate
+   * @param deviceIdentifier the device identifier to include in the certificate extension
+   * @param aaguid the authenticator AAGUID to include in the certificate extension
+   * @return a self-signed X.509 certificate
+   * @throws CertIOException if there is an error adding certificate extensions
+   * @throws CertificateException if there is an error creating the certificate
+   * @throws OperatorCreationException if there is an error creating the content signer
+   */
   public static X509Certificate generateAttestationCertificate(
       KeyPair keyPair, String deviceIdentifier, UUID aaguid)
       throws CertIOException, CertificateException, OperatorCreationException {
@@ -138,6 +174,13 @@ public class CryptoUtils {
     };
   }
 
+  /**
+   * Converts a hexadecimal string to a byte array.
+   *
+   * @param hexString the hex string to convert (may contain hyphens or other separators)
+   * @return the byte array representation of the hex string
+   * @throws RuntimeException if the hex string has an odd number of characters
+   */
   public static byte[] hexStringToByteArray(String hexString) {
     if (hexString == null) {
       return new byte[] {};
@@ -162,12 +205,25 @@ public class CryptoUtils {
     return data;
   }
 
+  /**
+   * Generates a random credential ID.
+   *
+   * @return a 16-byte random credential identifier
+   */
   public static byte[] generateCredentialId() {
     byte[] credentialId = new byte[16];
     new SecureRandom().nextBytes(credentialId);
     return credentialId;
   }
 
+  /**
+   * Encodes a public key in COSE (CBOR Object Signing and Encryption) format.
+   *
+   * @param publicKey the public key to encode
+   * @param algorithm the COSE algorithm identifier for the key
+   * @return the COSE-encoded public key as a byte array
+   * @throws IllegalArgumentException if the public key type is not supported
+   */
   public static byte[] encodeCOSEPublicKey(PublicKey publicKey, COSEAlgorithmIdentifier algorithm) {
     CBORObject coseKey = CBORObject.NewMap();
 
@@ -214,6 +270,14 @@ public class CryptoUtils {
     return bytes;
   }
 
+  /**
+   * Creates the attested credential data structure as defined in the WebAuthn specification.
+   *
+   * @param aaguid the authenticator attestation GUID (16 bytes)
+   * @param credentialId the credential identifier
+   * @param credentialPublicKey the COSE-encoded credential public key
+   * @return the attested credential data structure
+   */
   public static byte[] createAttestedCredentialData(
       byte[] aaguid, byte[] credentialId, byte[] credentialPublicKey) {
     ByteBuffer buffer =

@@ -28,7 +28,10 @@ public record PublicKeyCredentialAssertionOptions(
     String rpId,
     Integer timeout,
     UserVerificationType userVerification) {
-  // validate that the assertion response conforms to specification
+  /**
+   * Canonical constructor that validates and normalizes the assertion options according to the
+   * WebAuthn specification.
+   */
   public PublicKeyCredentialAssertionOptions {
     if (allowCredentials == null) {
       allowCredentials = List.of();

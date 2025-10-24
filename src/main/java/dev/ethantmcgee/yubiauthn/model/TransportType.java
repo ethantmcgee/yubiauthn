@@ -19,10 +19,15 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum TransportType {
+  /** Bluetooth Low Energy transport. */
   BLE("ble"),
+  /** Hybrid transport combining multiple mechanisms. */
   HYBRID("hybrid"),
+  /** Internal platform authenticator. */
   INTERNAL("internal"),
+  /** Near Field Communication transport. */
   NFC("nfc"),
+  /** USB transport. */
   USB("usb");
 
   @JsonValue private final String value;

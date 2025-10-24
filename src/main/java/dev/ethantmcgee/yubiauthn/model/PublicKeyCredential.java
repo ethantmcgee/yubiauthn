@@ -29,7 +29,10 @@ public record PublicKeyCredential<T>(
     T response,
     CredentialType type,
     ExtensionResults clientExtensionResults) {
-  // validate that the assertion response conforms to specification
+  /**
+   * Canonical constructor that validates the public key credential conforms to the WebAuthn
+   * specification.
+   */
   public PublicKeyCredential {
     if (authenticatorAttachment == null) {
       authenticatorAttachment = AuthenticatorAttachmentType.PLATFORM;
@@ -48,6 +51,12 @@ public record PublicKeyCredential<T>(
     }
   }
 
+  /**
+   * Converts this PublicKeyCredential to a JSON string representation.
+   *
+   * @return the JSON string representation of this credential
+   * @throws JsonProcessingException if there is an error during JSON serialization
+   */
   public String toJson() throws JsonProcessingException {
     return JsonUtil.getJsonMapper().writeValueAsString(this);
   }

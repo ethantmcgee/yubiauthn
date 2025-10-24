@@ -16,8 +16,11 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum HintType {
+  /** Removable security key authenticator. */
   SECURITY_KEY("security-key"),
+  /** Authenticator built into the client device. */
   CLIENT_DEVICE("client-device"),
+  /** Hybrid transport authenticator. */
   HYBRID("hybrid");
 
   @JsonValue private final String value;

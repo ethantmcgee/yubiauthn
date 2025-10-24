@@ -18,7 +18,10 @@ package dev.ethantmcgee.yubiauthn.model;
  */
 public record AttestationObject(
     AttestationFormat fmt, AuthenticatorData authData, AttestationStatement attStmt) {
-  // validate that the assertion response conforms to specification
+  /**
+   * Canonical constructor that validates the attestation object conforms to the WebAuthn
+   * specification.
+   */
   public AttestationObject {
     if (fmt == null) {
       throw new IllegalArgumentException("Format must not be null or blank");

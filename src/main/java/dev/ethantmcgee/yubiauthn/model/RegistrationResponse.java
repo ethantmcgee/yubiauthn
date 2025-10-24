@@ -26,6 +26,10 @@ public record RegistrationResponse(
     List<TransportType> transports,
     AuthenticatorData authenticatorData,
     COSEAlgorithmIdentifier publicKeyAlgorithm) {
+  /**
+   * Canonical constructor that validates the registration response conforms to the WebAuthn
+   * specification.
+   */
   public RegistrationResponse {
     if (clientDataJSON == null) {
       throw new IllegalArgumentException("clientDataJSON cannot be null");

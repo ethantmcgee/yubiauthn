@@ -25,7 +25,10 @@ public record AssertionResponse(
     AuthenticatorData authenticatorData,
     COSEAlgorithmIdentifier publicKeyAlgorithm,
     String signature) {
-  // validate that the assertion response conforms to specification
+  /**
+   * Canonical constructor that validates the assertion response conforms to the WebAuthn
+   * specification.
+   */
   public AssertionResponse {
     if (clientDataJSON == null) {
       throw new IllegalArgumentException("clientDataJSON cannot be null");

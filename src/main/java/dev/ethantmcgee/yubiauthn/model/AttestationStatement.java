@@ -16,7 +16,10 @@ package dev.ethantmcgee.yubiauthn.model;
  *     Attestation Format</a>
  */
 public record AttestationStatement(byte[] sig, byte[] x5c, COSEAlgorithmIdentifier alg) {
-  // validate that the assertion response conforms to specification
+  /**
+   * Canonical constructor that validates the attestation statement conforms to the WebAuthn
+   * specification.
+   */
   public AttestationStatement {
     if (sig == null || sig.length == 0) {
       throw new IllegalArgumentException("Signature must not be null or empty");

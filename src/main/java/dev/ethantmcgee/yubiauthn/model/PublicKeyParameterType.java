@@ -13,7 +13,10 @@ package dev.ethantmcgee.yubiauthn.model;
  *     WebAuthn - PublicKeyCredentialParameters Dictionary</a>
  */
 public record PublicKeyParameterType(COSEAlgorithmIdentifier alg, CredentialType type) {
-  // validate that the assertion response conforms to specification
+  /**
+   * Canonical constructor that validates the credential parameters conform to the WebAuthn
+   * specification.
+   */
   public PublicKeyParameterType {
     if (alg == null) {
       throw new IllegalArgumentException("alg cannot be null");
