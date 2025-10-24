@@ -29,7 +29,6 @@ mvn clean install
 
 ## Features
 
-- **Multiple Authenticator Models**: Pre-configured YubiKey 5 Series emulators
 - **COSE Algorithm Support**: ES256, ES384, ES512, RS256, RS384, RS512, EdDSA
 - **Authenticator Types**: Cross-platform and platform authenticators
 - **User Verification**: Configurable user presence and user verification
