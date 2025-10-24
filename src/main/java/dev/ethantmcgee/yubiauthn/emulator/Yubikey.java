@@ -42,4 +42,34 @@ public class Yubikey {
         .backupState(false)
         .build();
   }
+
+  /**
+   * Creates a YubiKey NEO emulator instance with FIDO U2F support.
+   *
+   * <p>The emulator is configured with the characteristics of a YubiKey NEO device, which uses the
+   * legacy FIDO U2F attestation format. Note that U2F keys have limited capabilities compared to
+   * FIDO2 keys: they don't support resident keys or user verification, only user presence.
+   *
+   * @return a configured YubiKeyEmulator instance mimicking a YubiKey NEO with U2F
+   */
+  public static YubiKeyEmulator getNeoU2F() {
+    return YubiKeyEmulator.builder()
+        .aaguid(UUID.fromString("00000000-0000-0000-0000-000000000000"))
+        .deviceIdentifier("312e332e362e312e342e312e34313438322e312e32")
+        .description("YubiKey NEO (U2F)")
+        .attestationFormat(AttestationFormat.FIDO_U2F)
+        .transports(List.of(TransportType.USB, TransportType.NFC))
+        .supportedAlgorithms(List.of(COSEAlgorithmIdentifier.ES256))
+        .supportedAttachmentTypes(List.of(AuthenticatorAttachmentType.CROSS_PLATFORM))
+        .supportsUserPresence(true)
+        .supportsUserVerification(false)
+        .supportsResidentKey(false)
+        .supportsEnterpriseAttestation(false)
+        .supportsCredProtect(false)
+        .supportsMinPinLength(false)
+        .pinLength(0)
+        .backupEligible(false)
+        .backupState(false)
+        .build();
+  }
 }

@@ -19,10 +19,12 @@ public record AttestationStatement(byte[] sig, byte[] x5c, COSEAlgorithmIdentifi
   /**
    * Canonical constructor that validates the attestation statement conforms to the WebAuthn
    * specification.
+   *
+   * <p>Note: For NONE attestation format, the signature may be an empty array.
    */
   public AttestationStatement {
-    if (sig == null || sig.length == 0) {
-      throw new IllegalArgumentException("Signature must not be null or empty");
+    if (sig == null) {
+      throw new IllegalArgumentException("Signature must not be null");
     }
   }
 }
