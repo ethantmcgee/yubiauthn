@@ -15,7 +15,7 @@ package dev.ethantmcgee.yubiauthn.model;
  * @see <a href="https://www.w3.org/TR/webauthn-3/#sctn-packed-attestation">W3C WebAuthn - Packed
  *     Attestation Format</a>
  */
-public record AttestationStatement(byte[] sig, byte[][] x5c, COSEAlgorithmIdentifier alg) {
+public record AttestationStatement(byte[] sig, byte[] x5c, COSEAlgorithmIdentifier alg) {
   // validate that the assertion response conforms to specification
   public AttestationStatement {
     if (sig == null || sig.length == 0) {

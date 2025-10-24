@@ -17,10 +17,10 @@ package dev.ethantmcgee.yubiauthn.model;
  *     Object</a>
  */
 public record AttestationObject(
-    String fmt, AuthenticatorData authData, AttestationStatement attStmt) {
+    AttestationFormat fmt, AuthenticatorData authData, AttestationStatement attStmt) {
   // validate that the assertion response conforms to specification
   public AttestationObject {
-    if (fmt == null || fmt.isBlank()) {
+    if (fmt == null) {
       throw new IllegalArgumentException("Format must not be null or blank");
     }
     if (authData == null) {
