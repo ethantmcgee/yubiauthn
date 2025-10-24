@@ -19,6 +19,8 @@ import lombok.RequiredArgsConstructor;
 public enum AttestationFormat {
   /** The packed attestation statement format. */
   PACKED("packed"),
+  /** The FIDO U2F attestation statement format (legacy). */
+  FIDO_U2F("fido-u2f"),
   /** No attestation statement is provided. */
   NONE("none");
 

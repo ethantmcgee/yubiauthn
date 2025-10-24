@@ -4,8 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.upokecenter.cbor.CBORObject;
 import dev.ethantmcgee.yubiauthn.crypto.CryptoUtils;
 import dev.ethantmcgee.yubiauthn.exception.CredentialNotFoundException;
+import dev.ethantmcgee.yubiauthn.exception.CryptographicException;
+import dev.ethantmcgee.yubiauthn.exception.EncodingException;
 import dev.ethantmcgee.yubiauthn.exception.InvalidConfigurationException;
 import dev.ethantmcgee.yubiauthn.exception.InvalidRequestException;
+import dev.ethantmcgee.yubiauthn.storage.CredentialStore;
+import dev.ethantmcgee.yubiauthn.storage.InMemoryCredentialStore;
 import dev.ethantmcgee.yubiauthn.model.AssertionResponse;
 import dev.ethantmcgee.yubiauthn.model.AttestationFormat;
 import dev.ethantmcgee.yubiauthn.model.AttestationObject;
@@ -38,10 +42,10 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Builder;
 import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.operator.OperatorCreationException;
@@ -62,14 +66,15 @@ import org.bouncycastle.operator.OperatorCreationException;
 @Builder(toBuilder = true, buildMethodName = "buildInternal")
 public class YubiKeyEmulator {
   private final ObjectMapper jsonMapper = JsonUtil.getJsonMapper();
-  private final Map<String, StoredCredential> credentials = new HashMap<>();
 
   private UUID aaguid;
   private String deviceIdentifier;
   private String description;
   private KeyPair attestationKeyPair;
   private X509Certificate attestationCertificate;
-  @Builder.Default private int signatureCounter = 0;
+  @Builder.Default private AtomicInteger signatureCounter = new AtomicInteger(0);
+  @Builder.Default private CredentialStore credentialStore = new InMemoryCredentialStore();
+  @Builder.Default private COSEAlgorithmIdentifier attestationAlgorithm = COSEAlgorithmIdentifier.ES256;
 
   @Builder.Default private List<TransportType> transports = List.of();
   @Builder.Default private List<COSEAlgorithmIdentifier> supportedAlgorithms = List.of();
@@ -116,14 +121,9 @@ public class YubiKeyEmulator {
     }
   }
 
-  private void init()
-      throws InvalidAlgorithmParameterException,
-          NoSuchAlgorithmException,
-          CertificateException,
-          OperatorCreationException,
-          CertIOException {
+  private void init() throws CryptographicException, InvalidAlgorithmParameterException, NoSuchAlgorithmException {
     if (attestationKeyPair == null) {
-      attestationKeyPair = CryptoUtils.generateKeyPair(COSEAlgorithmIdentifier.ES256);
+      attestationKeyPair = CryptoUtils.generateKeyPair(attestationAlgorithm);
     }
     if (attestationCertificate == null) {
       attestationCertificate =
@@ -136,10 +136,27 @@ public class YubiKeyEmulator {
    *
    * @param json the JSON string containing credential creation options
    * @return a PublicKeyCredential containing the registration response
-   * @throws Exception if credential creation fails or JSON parsing fails
+   * @throws InvalidConfigurationException if the emulator is misconfigured
+   * @throws InvalidRequestException if the request is invalid or unsupported
+   * @throws CryptographicException if cryptographic operations fail
+   * @throws EncodingException if encoding operations fail
    */
-  public PublicKeyCredential<RegistrationResponse> create(String json) throws Exception {
-    return create(jsonMapper.readValue(json, PublicKeyCredentialCreationOptions.class));
+  public PublicKeyCredential<RegistrationResponse> create(String json)
+      throws InvalidConfigurationException, InvalidRequestException, CryptographicException,
+          EncodingException {
+    if (json == null || json.isEmpty()) {
+      throw new InvalidRequestException("JSON must not be null or empty");
+    }
+    try {
+      return create(jsonMapper.readValue(json, PublicKeyCredentialCreationOptions.class));
+    } catch (InvalidConfigurationException
+        | InvalidRequestException
+        | CryptographicException
+        | EncodingException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new EncodingException("Failed to parse credential creation options", e);
+    }
   }
 
   /**
@@ -151,19 +168,25 @@ public class YubiKeyEmulator {
    *
    * @param options the credential creation options from the relying party
    * @return a PublicKeyCredential containing the registration response
-   * @throws Exception if credential creation fails due to invalid configuration or unsupported
-   *     options
+   * @throws InvalidConfigurationException if the emulator is misconfigured
+   * @throws InvalidRequestException if the request is invalid or unsupported
+   * @throws CryptographicException if cryptographic operations fail
+   * @throws EncodingException if encoding operations fail
    */
   public PublicKeyCredential<RegistrationResponse> create(
-      PublicKeyCredentialCreationOptions options) throws Exception {
+      PublicKeyCredentialCreationOptions options)
+      throws InvalidConfigurationException, InvalidRequestException, CryptographicException,
+          EncodingException {
+    // Validate configuration
+    if (options == null) {
+      throw new InvalidRequestException("Credential creation options must not be null");
+    }
     if (aaguid == null) {
       throw new InvalidConfigurationException("A valid uuid must be specified for the AAGUID");
     }
-
     if (deviceIdentifier == null) {
       throw new InvalidConfigurationException("A valid device identifier must be specified");
     }
-
     if (supportedAttachmentTypes.isEmpty()) {
       throw new InvalidConfigurationException(
           "At least one authenticator attachment type must be supported");
@@ -179,6 +202,11 @@ public class YubiKeyEmulator {
       throw new InvalidRequestException("No matching public key algorithm");
     }
 
+    // For fido-u2f, only ES256 is supported
+    if (attestationFormat == AttestationFormat.FIDO_U2F && alg != COSEAlgorithmIdentifier.ES256) {
+      throw new InvalidRequestException("fido-u2f attestation format only supports ES256 algorithm");
+    }
+
     AuthenticatorAttachmentType attachmentType =
         options.authenticatorSelection().authenticatorAttachment() != null
             ? options.authenticatorSelection().authenticatorAttachment()
@@ -190,85 +218,112 @@ public class YubiKeyEmulator {
           options.extensions().credentialProtectionPolicy().getResponseValue();
     }
 
-    byte[] credentialId = CryptoUtils.generateCredentialId();
-    KeyPair credentialKeyPair = CryptoUtils.generateKeyPair(alg);
-    byte[] credentialPublicKey =
-        CryptoUtils.encodeCOSEPublicKey(credentialKeyPair.getPublic(), alg);
-    byte[] attestedCredentialData =
-        CryptoUtils.createAttestedCredentialData(
-            aaguidToBytes(), credentialId, credentialPublicKey);
+    try {
+      byte[] credentialId = CryptoUtils.generateCredentialId();
+      KeyPair credentialKeyPair = CryptoUtils.generateKeyPair(alg);
+      byte[] credentialPublicKey =
+          CryptoUtils.encodeCOSEPublicKey(credentialKeyPair.getPublic(), alg);
+      byte[] attestedCredentialData =
+          CryptoUtils.createAttestedCredentialData(
+              aaguidToBytes(), credentialId, credentialPublicKey);
 
-    AuthenticatorData authData =
-        new AuthenticatorData.Builder()
-            .rpId(options.rp().id())
-            .userPresent(true)
-            .userVerified(isUserVerified(options.authenticatorSelection().userVerification()))
-            .backupEligible(backupEligible)
-            .backupState(backupState)
-            .attestedCredentialData(attestedCredentialData)
-            .extensions(getExtensionBytes(credentialProtectionPolicy))
-            .signCount(signatureCounter++)
-            .build();
+      int currentSignCount = signatureCounter.getAndIncrement();
 
-    Map<String, Object> clientData = new HashMap<>();
-    clientData.put("type", "webauthn.create");
-    clientData.put("challenge", options.challenge());
-    clientData.put("origin", "https://" + options.rp().id());
-    clientData.put("crossOrigin", false);
+      AuthenticatorData authData =
+          new AuthenticatorData.Builder()
+              .rpId(options.rp().id())
+              .userPresent(true)
+              .userVerified(isUserVerified(options.authenticatorSelection().userVerification()))
+              .backupEligible(backupEligible)
+              .backupState(backupState)
+              .attestedCredentialData(attestedCredentialData)
+              .extensions(getExtensionBytes(credentialProtectionPolicy))
+              .signCount(currentSignCount)
+              .build();
 
-    String clientDataJSON = jsonMapper.writeValueAsString(clientData);
-    byte[] clientDataHash =
-        MessageDigest.getInstance("SHA-256")
-            .digest(clientDataJSON.getBytes(StandardCharsets.UTF_8));
+      Map<String, Object> clientData = new java.util.HashMap<>();
+      clientData.put("type", "webauthn.create");
+      clientData.put("challenge", options.challenge());
+      clientData.put("origin", "https://" + options.rp().id());
+      clientData.put("crossOrigin", false);
 
-    ByteArrayOutputStream sigData = new ByteArrayOutputStream();
-    sigData.write(authData.encode());
-    sigData.write(clientDataHash);
-    byte[] signature =
-        CryptoUtils.sign(
-            sigData.toByteArray(), attestationKeyPair.getPrivate(), COSEAlgorithmIdentifier.ES256);
+      String clientDataJSON = jsonMapper.writeValueAsString(clientData);
+      byte[] clientDataHash =
+          MessageDigest.getInstance("SHA-256")
+              .digest(clientDataJSON.getBytes(StandardCharsets.UTF_8));
 
-    AttestationStatement attStmt =
-        new AttestationStatement(
-            signature, attestationCertificate.getEncoded(), COSEAlgorithmIdentifier.ES256);
-    byte[] attestationObject =
-        encodeAttestationObject(new AttestationObject(attestationFormat, authData, attStmt));
+      byte[] signature;
+      AttestationStatement attStmt;
 
-    credentials.put(
-        Base64.getUrlEncoder().withoutPadding().encodeToString(credentialId),
-        new StoredCredential(
-            credentialId,
-            credentialKeyPair,
-            alg,
-            options.rp().id(),
-            options.user().id(),
-            signatureCounter,
-            supportsResidentKey
-                && options.authenticatorSelection().residentKey() == ResidentKeyType.REQUIRED,
-            credentialProtectionPolicy));
+      if (attestationFormat == AttestationFormat.FIDO_U2F) {
+        // FIDO U2F attestation format
+        byte[] rpIdHash = MessageDigest.getInstance("SHA-256").digest(options.rp().id().getBytes(StandardCharsets.UTF_8));
+        byte[] u2fPublicKey = CryptoUtils.encodeU2FPublicKey((java.security.interfaces.ECPublicKey) credentialKeyPair.getPublic());
+        byte[] u2fSigData = CryptoUtils.createU2FSignatureData(rpIdHash, clientDataHash, credentialId, u2fPublicKey);
+        signature = CryptoUtils.sign(u2fSigData, attestationKeyPair.getPrivate(), attestationAlgorithm);
+        // U2F attStmt only has sig and x5c (no alg field)
+        attStmt = new AttestationStatement(signature, attestationCertificate.getEncoded(), null);
+      } else if (attestationFormat == AttestationFormat.PACKED) {
+        // Packed attestation format
+        ByteArrayOutputStream sigData = new ByteArrayOutputStream();
+        sigData.write(authData.encode());
+        sigData.write(clientDataHash);
+        signature = CryptoUtils.sign(sigData.toByteArray(), attestationKeyPair.getPrivate(), attestationAlgorithm);
+        attStmt = new AttestationStatement(signature, attestationCertificate.getEncoded(), attestationAlgorithm);
+      } else {
+        // NONE format
+        signature = new byte[0];
+        attStmt = new AttestationStatement(signature, null, null);
+      }
 
-    return new PublicKeyCredential<>(
-        attachmentType,
-        Base64.getUrlEncoder().withoutPadding().encodeToString(credentialId),
-        Base64.getUrlEncoder().withoutPadding().encodeToString(credentialId),
-        new RegistrationResponse(
-            Base64.getUrlEncoder().withoutPadding().encodeToString(clientDataJSON.getBytes()),
-            Base64.getUrlEncoder().withoutPadding().encodeToString(attestationObject),
-            transports,
-            authData,
-            alg),
-        CredentialType.PUBLIC_KEY,
-        new ExtensionResults(
-            supportsCredProtect
-                ? new CredPropsResult(
-                    supportsResidentKey
-                        && options.authenticatorSelection().residentKey()
-                            == ResidentKeyType.REQUIRED)
-                : null,
-            supportsCredProtect && credentialProtectionPolicy != null
-                ? credentialProtectionPolicy
-                : null,
-            supportsMinPinLength ? pinLength : null));
+      byte[] attestationObject =
+          encodeAttestationObject(new AttestationObject(attestationFormat, authData, attStmt));
+
+      String credentialIdString =
+          Base64.getUrlEncoder().withoutPadding().encodeToString(credentialId);
+      credentialStore.store(
+          credentialIdString,
+          new StoredCredential(
+              credentialId,
+              credentialKeyPair,
+              alg,
+              options.rp().id(),
+              options.user().id(),
+              currentSignCount,
+              supportsResidentKey
+                  && options.authenticatorSelection().residentKey() == ResidentKeyType.REQUIRED,
+              credentialProtectionPolicy));
+
+      return new PublicKeyCredential<>(
+          attachmentType,
+          credentialIdString,
+          credentialIdString,
+          new RegistrationResponse(
+              Base64.getUrlEncoder().withoutPadding().encodeToString(clientDataJSON.getBytes()),
+              Base64.getUrlEncoder().withoutPadding().encodeToString(attestationObject),
+              transports,
+              authData,
+              alg),
+          CredentialType.PUBLIC_KEY,
+          new ExtensionResults(
+              supportsCredProtect
+                  ? new CredPropsResult(
+                      supportsResidentKey
+                          && options.authenticatorSelection().residentKey()
+                              == ResidentKeyType.REQUIRED)
+                  : null,
+              supportsCredProtect && credentialProtectionPolicy != null
+                  ? credentialProtectionPolicy
+                  : null,
+              supportsMinPinLength ? pinLength : null));
+    } catch (InvalidConfigurationException
+        | InvalidRequestException
+        | CryptographicException
+        | EncodingException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new CryptographicException("Failed to create credential", e);
+    }
   }
 
   private boolean canAuthenticatorBeUsed(AuthenticatorSelection authenticatorSelection) {
@@ -296,6 +351,9 @@ public class YubiKeyEmulator {
 
   private COSEAlgorithmIdentifier findMatchingAlgorithm(
       List<PublicKeyParameterType> requestedAlgorithms) {
+    if (requestedAlgorithms == null || requestedAlgorithms.isEmpty()) {
+      return null;
+    }
     for (PublicKeyParameterType requestedAlgorithm : requestedAlgorithms) {
       if (supportedAlgorithms.contains(requestedAlgorithm.alg())) {
         return requestedAlgorithm.alg();
@@ -331,36 +389,53 @@ public class YubiKeyEmulator {
     return extensionsBytes;
   }
 
-  private byte[] encodeAttestationObject(AttestationObject attestationObject) throws Exception {
-    // Create CBOR map with canonical ordering: fmt (3 chars), attStmt (7 chars), authData (8 chars)
-    CBORObject attestationMap = CBORObject.NewMap();
+  private byte[] encodeAttestationObject(AttestationObject attestationObject) throws EncodingException {
+    try {
+      // Create CBOR map with canonical ordering: fmt (3 chars), attStmt (7 chars), authData (8 chars)
+      CBORObject attestationMap = CBORObject.NewMap();
 
-    // Add in canonical order for proper CBOR encoding
-    attestationMap.Add("fmt", attestationObject.fmt().getValue());
+      // Add in canonical order for proper CBOR encoding
+      attestationMap.Add("fmt", attestationObject.fmt().getValue());
 
-    // Build attStmt map
-    CBORObject attStmtMap = CBORObject.NewMap();
-    if (!attestationObject.fmt().equals(AttestationFormat.NONE)) {
-      // For packed attestation, add in canonical order: alg (3), sig (3), x5c (3)
-      // Same length, so lexicographic: alg < sig < x5c
-      if (attestationObject.attStmt().alg() != null) {
-        attStmtMap.Add("alg", attestationObject.attStmt().alg().getValue());
+      // Build attStmt map
+      CBORObject attStmtMap = CBORObject.NewMap();
+      if (attestationObject.fmt().equals(AttestationFormat.FIDO_U2F)) {
+        // FIDO U2F format: only sig and x5c (no alg field)
+        // Canonical order: sig (3) < x5c (3), lexicographic
+        if (attestationObject.attStmt().sig() != null) {
+          attStmtMap.Add("sig", attestationObject.attStmt().sig());
+        }
+        if (attestationObject.attStmt().x5c() != null
+            && attestationObject.attStmt().x5c().length > 0) {
+          CBORObject x5cArray = CBORObject.NewArray();
+          x5cArray.Add(attestationObject.attStmt().x5c());
+          attStmtMap.Add("x5c", x5cArray);
+        }
+      } else if (attestationObject.fmt().equals(AttestationFormat.PACKED)) {
+        // For packed attestation, add in canonical order: alg (3), sig (3), x5c (3)
+        // Same length, so lexicographic: alg < sig < x5c
+        if (attestationObject.attStmt().alg() != null) {
+          attStmtMap.Add("alg", attestationObject.attStmt().alg().getValue());
+        }
+        if (attestationObject.attStmt().sig() != null) {
+          attStmtMap.Add("sig", attestationObject.attStmt().sig());
+        }
+        if (attestationObject.attStmt().x5c() != null
+            && attestationObject.attStmt().x5c().length > 0) {
+          CBORObject x5cArray = CBORObject.NewArray();
+          x5cArray.Add(attestationObject.attStmt().x5c());
+          attStmtMap.Add("x5c", x5cArray);
+        }
       }
-      if (attestationObject.attStmt().sig() != null) {
-        attStmtMap.Add("sig", attestationObject.attStmt().sig());
-      }
-      if (attestationObject.attStmt().x5c() != null
-          && attestationObject.attStmt().x5c().length > 0) {
-        CBORObject x5cArray = CBORObject.NewArray();
-        x5cArray.Add(attestationObject.attStmt().x5c());
-        attStmtMap.Add("x5c", x5cArray);
-      }
+      // NONE format: empty attStmt map
+
+      attestationMap.Add("attStmt", attStmtMap);
+      attestationMap.Add("authData", attestationObject.authData().encode());
+
+      return attestationMap.EncodeToBytes();
+    } catch (Exception e) {
+      throw new EncodingException("Failed to encode attestation object", e);
     }
-    attestationMap.Add("attStmt", attStmtMap);
-
-    attestationMap.Add("authData", attestationObject.authData().encode());
-
-    return attestationMap.EncodeToBytes();
   }
 
   /**
@@ -368,10 +443,22 @@ public class YubiKeyEmulator {
    *
    * @param json the JSON string containing credential request options
    * @return a PublicKeyCredential containing the assertion response
-   * @throws Exception if authentication fails or JSON parsing fails
+   * @throws CredentialNotFoundException if no matching credential is found
+   * @throws CryptographicException if cryptographic operations fail
+   * @throws EncodingException if encoding operations fail
    */
-  public PublicKeyCredential<AssertionResponse> get(String json) throws Exception {
-    return get(jsonMapper.readValue(json, PublicKeyCredentialAssertionOptions.class));
+  public PublicKeyCredential<AssertionResponse> get(String json)
+      throws CredentialNotFoundException, CryptographicException, EncodingException {
+    if (json == null || json.isEmpty()) {
+      throw new EncodingException("JSON must not be null or empty");
+    }
+    try {
+      return get(jsonMapper.readValue(json, PublicKeyCredentialAssertionOptions.class));
+    } catch (CredentialNotFoundException | CryptographicException | EncodingException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new EncodingException("Failed to parse credential request options", e);
+    }
   }
 
   /**
@@ -383,99 +470,110 @@ public class YubiKeyEmulator {
    *
    * @param options the credential request options from the relying party
    * @return a PublicKeyCredential containing the assertion response
-   * @throws Exception if no matching credential is found or assertion generation fails
+   * @throws CredentialNotFoundException if no matching credential is found
+   * @throws CryptographicException if cryptographic operations fail
+   * @throws EncodingException if encoding operations fail
    */
   public PublicKeyCredential<AssertionResponse> get(PublicKeyCredentialAssertionOptions options)
-      throws Exception {
+      throws CredentialNotFoundException, CryptographicException, EncodingException {
+    if (options == null) {
+      throw new CredentialNotFoundException("Credential request options must not be null");
+    }
+
     StoredCredential credential = findMatchingCredential(options);
 
     if (credential == null) {
       throw new CredentialNotFoundException("No matching credential found for RP ID");
     }
 
-    AuthenticatorData authData =
-        new AuthenticatorData.Builder()
-            .rpId(credential.rpId())
-            .userPresent(true)
-            .userVerified(isUserVerified(options.userVerification()))
-            .backupEligible(backupEligible)
-            .backupState(backupState)
-            .signCount(signatureCounter++)
-            .extensions(getExtensionBytes(credential.credentialProtectionPolicy()))
-            .build();
+    try {
+      int currentSignCount = signatureCounter.getAndIncrement();
 
-    Map<String, Object> clientData = new HashMap<>();
-    clientData.put("type", "webauthn.get");
-    clientData.put("challenge", options.challenge());
-    clientData.put("origin", "https://" + credential.rpId());
-    clientData.put("crossOrigin", false);
+      AuthenticatorData authData =
+          new AuthenticatorData.Builder()
+              .rpId(credential.rpId())
+              .userPresent(true)
+              .userVerified(isUserVerified(options.userVerification()))
+              .backupEligible(backupEligible)
+              .backupState(backupState)
+              .signCount(currentSignCount)
+              .extensions(getExtensionBytes(credential.credentialProtectionPolicy()))
+              .build();
 
-    String clientDataJSON = jsonMapper.writeValueAsString(clientData);
-    byte[] clientDataHash =
-        MessageDigest.getInstance("SHA-256")
-            .digest(clientDataJSON.getBytes(StandardCharsets.UTF_8));
+      Map<String, Object> clientData = new java.util.HashMap<>();
+      clientData.put("type", "webauthn.get");
+      clientData.put("challenge", options.challenge());
+      clientData.put("origin", "https://" + credential.rpId());
+      clientData.put("crossOrigin", false);
 
-    ByteArrayOutputStream sigData = new ByteArrayOutputStream();
-    sigData.write(authData.encode());
-    sigData.write(clientDataHash);
+      String clientDataJSON = jsonMapper.writeValueAsString(clientData);
+      byte[] clientDataHash =
+          MessageDigest.getInstance("SHA-256")
+              .digest(clientDataJSON.getBytes(StandardCharsets.UTF_8));
 
-    byte[] signature =
-        CryptoUtils.sign(
-            sigData.toByteArray(), credential.keyPair().getPrivate(), credential.algorithm());
+      ByteArrayOutputStream sigData = new ByteArrayOutputStream();
+      sigData.write(authData.encode());
+      sigData.write(clientDataHash);
 
-    String credentialKey =
-        Base64.getUrlEncoder().withoutPadding().encodeToString(credential.credentialId());
-    credentials.put(
-        credentialKey,
-        new StoredCredential(
-            credential.credentialId(),
-            credential.keyPair(),
-            credential.algorithm(),
-            credential.rpId(),
-            credential.userHandle(),
-            signatureCounter,
-            credential.rk(),
-            credential.credentialProtectionPolicy()));
+      byte[] signature =
+          CryptoUtils.sign(
+              sigData.toByteArray(), credential.keyPair().getPrivate(), credential.algorithm());
 
-    return new PublicKeyCredential<>(
-        supportedAttachmentTypes.getFirst(),
-        Base64.getUrlEncoder().withoutPadding().encodeToString(credential.credentialId()),
-        Base64.getUrlEncoder().withoutPadding().encodeToString(credential.credentialId()),
-        new AssertionResponse(
-            Base64.getUrlEncoder().withoutPadding().encodeToString(clientDataJSON.getBytes()),
-            transports,
-            authData,
-            credential.algorithm(),
-            Base64.getUrlEncoder().withoutPadding().encodeToString(signature)),
-        CredentialType.PUBLIC_KEY,
-        new ExtensionResults(
-            supportsCredProtect
-                ? new CredPropsResult(supportsResidentKey && credential.rk())
-                : null,
-            supportsCredProtect && credential.credentialProtectionPolicy() != null
-                ? credential.credentialProtectionPolicy()
-                : null,
-            supportsMinPinLength ? pinLength : null));
+      String credentialKey =
+          Base64.getUrlEncoder().withoutPadding().encodeToString(credential.credentialId());
+      credentialStore.store(
+          credentialKey,
+          new StoredCredential(
+              credential.credentialId(),
+              credential.keyPair(),
+              credential.algorithm(),
+              credential.rpId(),
+              credential.userHandle(),
+              currentSignCount,
+              credential.rk(),
+              credential.credentialProtectionPolicy()));
+
+      return new PublicKeyCredential<>(
+          supportedAttachmentTypes.getFirst(),
+          Base64.getUrlEncoder().withoutPadding().encodeToString(credential.credentialId()),
+          Base64.getUrlEncoder().withoutPadding().encodeToString(credential.credentialId()),
+          new AssertionResponse(
+              Base64.getUrlEncoder().withoutPadding().encodeToString(clientDataJSON.getBytes()),
+              transports,
+              authData,
+              credential.algorithm(),
+              Base64.getUrlEncoder().withoutPadding().encodeToString(signature)),
+          CredentialType.PUBLIC_KEY,
+          new ExtensionResults(
+              supportsCredProtect
+                  ? new CredPropsResult(supportsResidentKey && credential.rk())
+                  : null,
+              supportsCredProtect && credential.credentialProtectionPolicy() != null
+                  ? credential.credentialProtectionPolicy()
+                  : null,
+              supportsMinPinLength ? pinLength : null));
+    } catch (CredentialNotFoundException | CryptographicException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new CryptographicException("Failed to generate assertion", e);
+    }
   }
 
   private StoredCredential findMatchingCredential(PublicKeyCredentialAssertionOptions options) {
     if (options.allowCredentials() != null && !options.allowCredentials().isEmpty()) {
       // Respect the order of allowCredentials - return the first match
       for (PublicKeyCredentialRef descriptor : options.allowCredentials()) {
-        if (credentials.containsKey(descriptor.id())) {
-          return credentials.get(descriptor.id());
+        var credential = credentialStore.retrieve(descriptor.id());
+        if (credential.isPresent()) {
+          return credential.get();
         }
       }
       return null;
     } else {
       // No allowCredentials specified, find any credential for this RP ID
       String rpId = options.rpId();
-      for (StoredCredential cred : credentials.values()) {
-        if (cred.rpId().equals(rpId)) {
-          return cred;
-        }
-      }
-      return null;
+      var credentials = credentialStore.findByRpId(rpId);
+      return credentials.isEmpty() ? null : credentials.iterator().next();
     }
   }
 }

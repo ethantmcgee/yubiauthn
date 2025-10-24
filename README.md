@@ -29,13 +29,18 @@ mvn clean install
 
 ## Features
 
-- **COSE Algorithm Support**: ES256, ES384, ES512, RS256, RS384, RS512, EdDSA
+- **COSE Algorithm Support**: ES256, ES384, ES512, RS256, RS384, RS512, EdDSA (all algorithms fully supported for credentials and attestation)
 - **Authenticator Types**: Cross-platform and platform authenticators
 - **User Verification**: Configurable user presence and user verification
 - **Resident Keys**: Support for discoverable credentials
 - **Extensions**: credProtect, credProps, minPinLength
 - **Backup Flags**: Backup eligible and backup state support
-- **Attestation**: Self-signed packed attestation format
+- **Attestation Formats**:
+  - **packed**: Self-signed packed attestation (default)
+  - **fido-u2f**: Legacy FIDO U2F attestation format
+  - **none**: No attestation statement
+- **Thread-Safe**: Credential storage and signature counter operations are thread-safe
+- **Pluggable Storage**: Credential storage abstraction with in-memory implementation included
 
 ## Usage
 
@@ -44,9 +49,17 @@ mvn clean install
 ```java
 import dev.ethantmcgee.yubiauthn.emulator.Yubikey;
 import dev.ethantmcgee.yubiauthn.emulator.YubiKeyEmulator;
+import dev.ethantmcgee.yubiauthn.model.AttestationFormat;
+import dev.ethantmcgee.yubiauthn.model.COSEAlgorithmIdentifier;
 
 // Create an emulator instance using a pre-configured model
 YubiKeyEmulator emulator = Yubikey.get5cNfc();
+
+// Or create a custom emulator with specific attestation format
+YubiKeyEmulator u2fEmulator = Yubikey.get5cNfc().toBuilder()
+    .attestationFormat(AttestationFormat.FIDO_U2F)
+    .attestationAlgorithm(COSEAlgorithmIdentifier.ES256)
+    .build();
 
 // Register a credential
 PublicKeyCredentialCreationOptions registrationOptions = // ... build options
@@ -55,6 +68,32 @@ PublicKeyCredential<RegistrationResponse> credential = emulator.create(registrat
 // Authenticate with the credential
 PublicKeyCredentialAssertionOptions assertionOptions = // ... build options
 PublicKeyCredential<AssertionResponse> assertion = emulator.get(assertionOptions);
+```
+
+### Advanced Configuration
+
+```java
+import dev.ethantmcgee.yubiauthn.emulator.YubiKeyEmulator;
+import dev.ethantmcgee.yubiauthn.storage.InMemoryCredentialStore;
+import dev.ethantmcgee.yubiauthn.model.AttestationFormat;
+import dev.ethantmcgee.yubiauthn.model.COSEAlgorithmIdentifier;
+
+// Create a fully customized emulator
+YubiKeyEmulator customEmulator = YubiKeyEmulator.builder()
+    .aaguid(UUID.fromString("2fc0579f-8113-47ea-b116-bb5a8db9202a"))
+    .deviceIdentifier("Custom Device")
+    .attestationFormat(AttestationFormat.PACKED)
+    .attestationAlgorithm(COSEAlgorithmIdentifier.ES256)
+    .supportedAlgorithms(List.of(
+        COSEAlgorithmIdentifier.ES256,
+        COSEAlgorithmIdentifier.ES384,
+        COSEAlgorithmIdentifier.EdDSA,
+        COSEAlgorithmIdentifier.RS256
+    ))
+    .credentialStore(new InMemoryCredentialStore())
+    .supportsUserVerification(true)
+    .supportsResidentKey(true)
+    .build();
 ```
 
 ### Supported Algorithms
