@@ -3,13 +3,12 @@ package dev.ethantmcgee.yubiauthn.emulator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.upokecenter.cbor.CBORObject;
 import dev.ethantmcgee.yubiauthn.crypto.CryptoUtils;
+import dev.ethantmcgee.yubiauthn.emulator.scp.Scp11bHandler;
 import dev.ethantmcgee.yubiauthn.exception.CredentialNotFoundException;
 import dev.ethantmcgee.yubiauthn.exception.CryptographicException;
 import dev.ethantmcgee.yubiauthn.exception.EncodingException;
 import dev.ethantmcgee.yubiauthn.exception.InvalidConfigurationException;
 import dev.ethantmcgee.yubiauthn.exception.InvalidRequestException;
-import dev.ethantmcgee.yubiauthn.storage.CredentialStore;
-import dev.ethantmcgee.yubiauthn.storage.InMemoryCredentialStore;
 import dev.ethantmcgee.yubiauthn.model.AssertionResponse;
 import dev.ethantmcgee.yubiauthn.model.AttestationFormat;
 import dev.ethantmcgee.yubiauthn.model.AttestationObject;
@@ -31,24 +30,35 @@ import dev.ethantmcgee.yubiauthn.model.ResidentKeyType;
 import dev.ethantmcgee.yubiauthn.model.StoredCredential;
 import dev.ethantmcgee.yubiauthn.model.TransportType;
 import dev.ethantmcgee.yubiauthn.model.UserVerificationType;
+import dev.ethantmcgee.yubiauthn.storage.CredentialStore;
+import dev.ethantmcgee.yubiauthn.storage.InMemoryCredentialStore;
 import dev.ethantmcgee.yubiauthn.util.JsonUtil;
 import java.io.ByteArrayOutputStream;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.security.cert.CertificateException;
+import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
+import java.security.spec.ECGenParameterSpec;
 import java.util.Base64;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Builder;
-import org.bouncycastle.cert.CertIOException;
-import org.bouncycastle.operator.OperatorCreationException;
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.bouncycastle.cert.X509v3CertificateBuilder;
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 
 /**
  * Emulates a FIDO2/WebAuthn authenticator with configurable characteristics.
@@ -64,7 +74,7 @@ import org.bouncycastle.operator.OperatorCreationException;
  * @see Yubikey for factory methods creating pre-configured emulator instances
  */
 @Builder(toBuilder = true, buildMethodName = "buildInternal")
-public class YubiKeyEmulator {
+public class YubiKeyEmulator implements SmartCardConnection {
   private final ObjectMapper jsonMapper = JsonUtil.getJsonMapper();
 
   private UUID aaguid;
@@ -74,7 +84,9 @@ public class YubiKeyEmulator {
   private X509Certificate attestationCertificate;
   @Builder.Default private AtomicInteger signatureCounter = new AtomicInteger(0);
   @Builder.Default private CredentialStore credentialStore = new InMemoryCredentialStore();
-  @Builder.Default private COSEAlgorithmIdentifier attestationAlgorithm = COSEAlgorithmIdentifier.ES256;
+
+  @Builder.Default
+  private COSEAlgorithmIdentifier attestationAlgorithm = COSEAlgorithmIdentifier.ES256;
 
   @Builder.Default private List<TransportType> transports = List.of();
   @Builder.Default private List<COSEAlgorithmIdentifier> supportedAlgorithms = List.of();
@@ -96,6 +108,11 @@ public class YubiKeyEmulator {
   @Builder.Default private boolean backupState = false;
 
   @Builder.Default private AttestationFormat attestationFormat = AttestationFormat.PACKED;
+
+  // SCP11b handler and APDU processor
+  private transient ApduHandler apduHandler;
+  private transient KeyPair scp11bKeyPair;
+  private transient X509Certificate scp11bCertificate;
 
   /**
    * Builder class for constructing YubiKeyEmulator instances.
@@ -121,7 +138,8 @@ public class YubiKeyEmulator {
     }
   }
 
-  private void init() throws CryptographicException, InvalidAlgorithmParameterException, NoSuchAlgorithmException {
+  private void init()
+      throws CryptographicException, InvalidAlgorithmParameterException, NoSuchAlgorithmException {
     if (attestationKeyPair == null) {
       attestationKeyPair = CryptoUtils.generateKeyPair(attestationAlgorithm);
     }
@@ -129,6 +147,53 @@ public class YubiKeyEmulator {
       attestationCertificate =
           CryptoUtils.generateAttestationCertificate(attestationKeyPair, deviceIdentifier, aaguid);
     }
+
+    // Initialize SCP11b key pair and certificate
+    initScp11b();
+  }
+
+  private void initScp11b() {
+    try {
+      // Generate ECDH key pair for SCP11b
+      KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", new BouncyCastleProvider());
+      kpg.initialize(new ECGenParameterSpec("secp256r1"), new SecureRandom());
+      scp11bKeyPair = kpg.generateKeyPair();
+
+      // Generate self-signed certificate for SCP11b
+      scp11bCertificate = generateScp11bCertificate(scp11bKeyPair);
+
+      // Initialize APDU handler
+      Scp11bHandler scp11bHandler = new Scp11bHandler(scp11bKeyPair, List.of(scp11bCertificate));
+      apduHandler = new ApduHandler(scp11bHandler, "5.7.4", new byte[] {0x01, 0x02, 0x03, 0x04});
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to initialize SCP11b", e);
+    }
+  }
+
+  private X509Certificate generateScp11bCertificate(KeyPair keyPair) throws Exception {
+    long now = System.currentTimeMillis();
+    Date startDate = new Date(now);
+    Date endDate = new Date(now + 365L * 24 * 60 * 60 * 1000); // 1 year validity
+
+    X500Name issuer = new X500Name("CN=YubiKey SD Attestation");
+    X500Name subject = new X500Name("CN=YubiKey SD Attestation 13:01");
+    BigInteger serialNumber = BigInteger.valueOf(now);
+
+    SubjectPublicKeyInfo subjectPublicKeyInfo =
+        SubjectPublicKeyInfo.getInstance(keyPair.getPublic().getEncoded());
+
+    X509v3CertificateBuilder certBuilder =
+        new X509v3CertificateBuilder(
+            issuer, serialNumber, startDate, endDate, subject, subjectPublicKeyInfo);
+
+    ContentSigner signer =
+        new JcaContentSignerBuilder("SHA256withECDSA")
+            .setProvider(new BouncyCastleProvider())
+            .build(keyPair.getPrivate());
+
+    return new JcaX509CertificateConverter()
+        .setProvider(new BouncyCastleProvider())
+        .getCertificate(certBuilder.build(signer));
   }
 
   /**
@@ -142,7 +207,9 @@ public class YubiKeyEmulator {
    * @throws EncodingException if encoding operations fail
    */
   public PublicKeyCredential<RegistrationResponse> create(String json)
-      throws InvalidConfigurationException, InvalidRequestException, CryptographicException,
+      throws InvalidConfigurationException,
+          InvalidRequestException,
+          CryptographicException,
           EncodingException {
     if (json == null || json.isEmpty()) {
       throw new InvalidRequestException("JSON must not be null or empty");
@@ -175,7 +242,9 @@ public class YubiKeyEmulator {
    */
   public PublicKeyCredential<RegistrationResponse> create(
       PublicKeyCredentialCreationOptions options)
-      throws InvalidConfigurationException, InvalidRequestException, CryptographicException,
+      throws InvalidConfigurationException,
+          InvalidRequestException,
+          CryptographicException,
           EncodingException {
     // Validate configuration
     if (options == null) {
@@ -204,7 +273,8 @@ public class YubiKeyEmulator {
 
     // For fido-u2f, only ES256 is supported
     if (attestationFormat == AttestationFormat.FIDO_U2F && alg != COSEAlgorithmIdentifier.ES256) {
-      throw new InvalidRequestException("fido-u2f attestation format only supports ES256 algorithm");
+      throw new InvalidRequestException(
+          "fido-u2f attestation format only supports ES256 algorithm");
     }
 
     AuthenticatorAttachmentType attachmentType =
@@ -257,10 +327,17 @@ public class YubiKeyEmulator {
 
       if (attestationFormat == AttestationFormat.FIDO_U2F) {
         // FIDO U2F attestation format
-        byte[] rpIdHash = MessageDigest.getInstance("SHA-256").digest(options.rp().id().getBytes(StandardCharsets.UTF_8));
-        byte[] u2fPublicKey = CryptoUtils.encodeU2FPublicKey((java.security.interfaces.ECPublicKey) credentialKeyPair.getPublic());
-        byte[] u2fSigData = CryptoUtils.createU2FSignatureData(rpIdHash, clientDataHash, credentialId, u2fPublicKey);
-        signature = CryptoUtils.sign(u2fSigData, attestationKeyPair.getPrivate(), attestationAlgorithm);
+        byte[] rpIdHash =
+            MessageDigest.getInstance("SHA-256")
+                .digest(options.rp().id().getBytes(StandardCharsets.UTF_8));
+        byte[] u2fPublicKey =
+            CryptoUtils.encodeU2FPublicKey(
+                (java.security.interfaces.ECPublicKey) credentialKeyPair.getPublic());
+        byte[] u2fSigData =
+            CryptoUtils.createU2FSignatureData(
+                rpIdHash, clientDataHash, credentialId, u2fPublicKey);
+        signature =
+            CryptoUtils.sign(u2fSigData, attestationKeyPair.getPrivate(), attestationAlgorithm);
         // U2F attStmt only has sig and x5c (no alg field)
         attStmt = new AttestationStatement(signature, attestationCertificate.getEncoded(), null);
       } else if (attestationFormat == AttestationFormat.PACKED) {
@@ -268,8 +345,12 @@ public class YubiKeyEmulator {
         ByteArrayOutputStream sigData = new ByteArrayOutputStream();
         sigData.write(authData.encode());
         sigData.write(clientDataHash);
-        signature = CryptoUtils.sign(sigData.toByteArray(), attestationKeyPair.getPrivate(), attestationAlgorithm);
-        attStmt = new AttestationStatement(signature, attestationCertificate.getEncoded(), attestationAlgorithm);
+        signature =
+            CryptoUtils.sign(
+                sigData.toByteArray(), attestationKeyPair.getPrivate(), attestationAlgorithm);
+        attStmt =
+            new AttestationStatement(
+                signature, attestationCertificate.getEncoded(), attestationAlgorithm);
       } else {
         // NONE format
         signature = new byte[0];
@@ -342,11 +423,8 @@ public class YubiKeyEmulator {
       return false;
     }
 
-    if (authenticatorSelection.userVerification() == UserVerificationType.REQUIRED
-        && !supportsUserVerification) {
-      return false;
-    }
-    return true;
+    return authenticatorSelection.userVerification() != UserVerificationType.REQUIRED
+        || supportsUserVerification;
   }
 
   private COSEAlgorithmIdentifier findMatchingAlgorithm(
@@ -389,9 +467,11 @@ public class YubiKeyEmulator {
     return extensionsBytes;
   }
 
-  private byte[] encodeAttestationObject(AttestationObject attestationObject) throws EncodingException {
+  private byte[] encodeAttestationObject(AttestationObject attestationObject)
+      throws EncodingException {
     try {
-      // Create CBOR map with canonical ordering: fmt (3 chars), attStmt (7 chars), authData (8 chars)
+      // Create CBOR map with canonical ordering: fmt (3 chars), attStmt (7 chars), authData (8
+      // chars)
       CBORObject attestationMap = CBORObject.NewMap();
 
       // Add in canonical order for proper CBOR encoding
@@ -575,5 +655,20 @@ public class YubiKeyEmulator {
       var credentials = credentialStore.findByRpId(rpId);
       return credentials.isEmpty() ? null : credentials.iterator().next();
     }
+  }
+
+  @Override
+  public byte[] sendAndReceive(byte[] bytes) {
+    // tell the programmer what connection we are using (1 = usb, 2 = nfc)
+    if (bytes.length == 4 && bytes[0] == -1 && bytes[1] == -1 && bytes[2] == 1) {
+      if (bytes[3]
+          == 0) { // if the programmer is asking, respond with default, echo back expected value
+        bytes[3] = 2; // default to nfc
+      }
+      return new byte[] {bytes[3], (byte) (0x9000 >> 8), (byte) (0x9000 & 0xFF)};
+    }
+
+    // Handle APDU commands using the APDU handler
+    return apduHandler.processApdu(bytes);
   }
 }

@@ -1,6 +1,7 @@
 package dev.ethantmcgee.yubiauthn.crypto;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.ethantmcgee.yubiauthn.exception.CryptographicException;
 import dev.ethantmcgee.yubiauthn.model.COSEAlgorithmIdentifier;
@@ -54,7 +55,8 @@ class CryptoUtilsTest {
   @Test
   void testEncodeCOSEPublicKey_EC() throws Exception {
     KeyPair keyPair = CryptoUtils.generateKeyPair(COSEAlgorithmIdentifier.ES256);
-    byte[] encoded = CryptoUtils.encodeCOSEPublicKey(keyPair.getPublic(), COSEAlgorithmIdentifier.ES256);
+    byte[] encoded =
+        CryptoUtils.encodeCOSEPublicKey(keyPair.getPublic(), COSEAlgorithmIdentifier.ES256);
     assertThat(encoded).isNotNull();
     assertThat(encoded.length).isGreaterThan(0);
   }
@@ -62,7 +64,8 @@ class CryptoUtilsTest {
   @Test
   void testEncodeCOSEPublicKey_RSA() throws Exception {
     KeyPair keyPair = CryptoUtils.generateKeyPair(COSEAlgorithmIdentifier.RS256);
-    byte[] encoded = CryptoUtils.encodeCOSEPublicKey(keyPair.getPublic(), COSEAlgorithmIdentifier.RS256);
+    byte[] encoded =
+        CryptoUtils.encodeCOSEPublicKey(keyPair.getPublic(), COSEAlgorithmIdentifier.RS256);
     assertThat(encoded).isNotNull();
     assertThat(encoded.length).isGreaterThan(0);
   }
@@ -70,7 +73,8 @@ class CryptoUtilsTest {
   @Test
   void testEncodeCOSEPublicKey_EdDSA() throws Exception {
     KeyPair keyPair = CryptoUtils.generateKeyPair(COSEAlgorithmIdentifier.EdDSA);
-    byte[] encoded = CryptoUtils.encodeCOSEPublicKey(keyPair.getPublic(), COSEAlgorithmIdentifier.EdDSA);
+    byte[] encoded =
+        CryptoUtils.encodeCOSEPublicKey(keyPair.getPublic(), COSEAlgorithmIdentifier.EdDSA);
     assertThat(encoded).isNotNull();
     assertThat(encoded.length).isGreaterThan(0);
   }
@@ -120,7 +124,8 @@ class CryptoUtilsTest {
   @Test
   void testSign_NullData() throws Exception {
     KeyPair keyPair = CryptoUtils.generateKeyPair(COSEAlgorithmIdentifier.ES256);
-    assertThatThrownBy(() -> CryptoUtils.sign(null, keyPair.getPrivate(), COSEAlgorithmIdentifier.ES256))
+    assertThatThrownBy(
+            () -> CryptoUtils.sign(null, keyPair.getPrivate(), COSEAlgorithmIdentifier.ES256))
         .isInstanceOf(CryptographicException.class)
         .hasMessageContaining("Data to sign must not be null");
   }
@@ -128,7 +133,9 @@ class CryptoUtilsTest {
   @Test
   void testSign_EmptyData() throws Exception {
     KeyPair keyPair = CryptoUtils.generateKeyPair(COSEAlgorithmIdentifier.ES256);
-    assertThatThrownBy(() -> CryptoUtils.sign(new byte[0], keyPair.getPrivate(), COSEAlgorithmIdentifier.ES256))
+    assertThatThrownBy(
+            () ->
+                CryptoUtils.sign(new byte[0], keyPair.getPrivate(), COSEAlgorithmIdentifier.ES256))
         .isInstanceOf(CryptographicException.class)
         .hasMessageContaining("Data to sign must not be null or empty");
   }
@@ -147,7 +154,8 @@ class CryptoUtilsTest {
   @Test
   void testGenerateAttestationCertificate_NullKeyPair() {
     UUID aaguid = UUID.randomUUID();
-    assertThatThrownBy(() -> CryptoUtils.generateAttestationCertificate(null, "test-device", aaguid))
+    assertThatThrownBy(
+            () -> CryptoUtils.generateAttestationCertificate(null, "test-device", aaguid))
         .isInstanceOf(CryptographicException.class)
         .hasMessageContaining("Key pair must not be null");
   }
@@ -155,7 +163,8 @@ class CryptoUtilsTest {
   @Test
   void testGenerateAttestationCertificate_NullAAGUID() throws Exception {
     KeyPair keyPair = CryptoUtils.generateKeyPair(COSEAlgorithmIdentifier.ES256);
-    assertThatThrownBy(() -> CryptoUtils.generateAttestationCertificate(keyPair, "test-device", null))
+    assertThatThrownBy(
+            () -> CryptoUtils.generateAttestationCertificate(keyPair, "test-device", null))
         .isInstanceOf(CryptographicException.class)
         .hasMessageContaining("AAGUID must not be null");
   }
@@ -194,10 +203,12 @@ class CryptoUtilsTest {
     byte[] publicKey = new byte[65];
     publicKey[0] = 0x04;
 
-    byte[] sigData = CryptoUtils.createU2FSignatureData(rpIdHash, clientDataHash, credentialId, publicKey);
+    byte[] sigData =
+        CryptoUtils.createU2FSignatureData(rpIdHash, clientDataHash, credentialId, publicKey);
 
     assertThat(sigData).isNotNull();
-    assertThat(sigData.length).isEqualTo(1 + 32 + 32 + 16 + 65); // reserved + rpIdHash + clientDataHash + credId + pubKey
+    assertThat(sigData.length)
+        .isEqualTo(1 + 32 + 32 + 16 + 65); // reserved + rpIdHash + clientDataHash + credId + pubKey
     assertThat(sigData[0]).isEqualTo((byte) 0x00); // Reserved byte
   }
 
@@ -208,7 +219,10 @@ class CryptoUtilsTest {
     byte[] credentialId = new byte[16];
     byte[] publicKey = new byte[65];
 
-    assertThatThrownBy(() -> CryptoUtils.createU2FSignatureData(badHash, clientDataHash, credentialId, publicKey))
+    assertThatThrownBy(
+            () ->
+                CryptoUtils.createU2FSignatureData(
+                    badHash, clientDataHash, credentialId, publicKey))
         .isInstanceOf(CryptographicException.class)
         .hasMessageContaining("RP ID hash must be 32 bytes");
   }
@@ -220,7 +234,10 @@ class CryptoUtilsTest {
     byte[] credentialId = new byte[16];
     byte[] badPublicKey = new byte[64]; // Wrong size
 
-    assertThatThrownBy(() -> CryptoUtils.createU2FSignatureData(rpIdHash, clientDataHash, credentialId, badPublicKey))
+    assertThatThrownBy(
+            () ->
+                CryptoUtils.createU2FSignatureData(
+                    rpIdHash, clientDataHash, credentialId, badPublicKey))
         .isInstanceOf(CryptographicException.class)
         .hasMessageContaining("Public key must be 65 bytes");
   }

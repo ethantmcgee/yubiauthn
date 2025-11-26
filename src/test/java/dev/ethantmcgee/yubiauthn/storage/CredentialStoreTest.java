@@ -1,6 +1,7 @@
 package dev.ethantmcgee.yubiauthn.storage;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.ethantmcgee.yubiauthn.crypto.CryptoUtils;
 import dev.ethantmcgee.yubiauthn.model.COSEAlgorithmIdentifier;
@@ -28,16 +29,16 @@ class CredentialStoreTest {
     byte[] credentialId = CryptoUtils.generateCredentialId();
     String credId = Base64.getUrlEncoder().withoutPadding().encodeToString(credentialId);
 
-    StoredCredential credential = new StoredCredential(
-        credentialId,
-        keyPair,
-        COSEAlgorithmIdentifier.ES256,
-        "example.com",
-        "user123",
-        1,
-        false,
-        null
-    );
+    StoredCredential credential =
+        new StoredCredential(
+            credentialId,
+            keyPair,
+            COSEAlgorithmIdentifier.ES256,
+            "example.com",
+            "user123",
+            1,
+            false,
+            null);
 
     store.store(credId, credential);
     var retrieved = store.retrieve(credId);
@@ -60,14 +61,26 @@ class CredentialStoreTest {
     byte[] credId1 = CryptoUtils.generateCredentialId();
     byte[] credId2 = CryptoUtils.generateCredentialId();
 
-    StoredCredential cred1 = new StoredCredential(
-        credId1, keyPair1, COSEAlgorithmIdentifier.ES256,
-        "example.com", "user1", 1, false, null
-    );
-    StoredCredential cred2 = new StoredCredential(
-        credId2, keyPair2, COSEAlgorithmIdentifier.ES256,
-        "example.com", "user2", 1, false, null
-    );
+    StoredCredential cred1 =
+        new StoredCredential(
+            credId1,
+            keyPair1,
+            COSEAlgorithmIdentifier.ES256,
+            "example.com",
+            "user1",
+            1,
+            false,
+            null);
+    StoredCredential cred2 =
+        new StoredCredential(
+            credId2,
+            keyPair2,
+            COSEAlgorithmIdentifier.ES256,
+            "example.com",
+            "user2",
+            1,
+            false,
+            null);
 
     store.store(Base64.getUrlEncoder().withoutPadding().encodeToString(credId1), cred1);
     store.store(Base64.getUrlEncoder().withoutPadding().encodeToString(credId2), cred2);
@@ -88,10 +101,16 @@ class CredentialStoreTest {
     byte[] credentialId = CryptoUtils.generateCredentialId();
     String credId = Base64.getUrlEncoder().withoutPadding().encodeToString(credentialId);
 
-    StoredCredential credential = new StoredCredential(
-        credentialId, keyPair, COSEAlgorithmIdentifier.ES256,
-        "example.com", "user123", 1, false, null
-    );
+    StoredCredential credential =
+        new StoredCredential(
+            credentialId,
+            keyPair,
+            COSEAlgorithmIdentifier.ES256,
+            "example.com",
+            "user123",
+            1,
+            false,
+            null);
 
     store.store(credId, credential);
     assertThat(store.retrieve(credId)).isPresent();
@@ -113,10 +132,16 @@ class CredentialStoreTest {
     byte[] credentialId = CryptoUtils.generateCredentialId();
     String credId = Base64.getUrlEncoder().withoutPadding().encodeToString(credentialId);
 
-    StoredCredential credential = new StoredCredential(
-        credentialId, keyPair, COSEAlgorithmIdentifier.ES256,
-        "example.com", "user123", 1, false, null
-    );
+    StoredCredential credential =
+        new StoredCredential(
+            credentialId,
+            keyPair,
+            COSEAlgorithmIdentifier.ES256,
+            "example.com",
+            "user123",
+            1,
+            false,
+            null);
 
     store.store(credId, credential);
     assertThat(store.size()).isEqualTo(1);
@@ -135,10 +160,16 @@ class CredentialStoreTest {
       byte[] credentialId = CryptoUtils.generateCredentialId();
       String credId = Base64.getUrlEncoder().withoutPadding().encodeToString(credentialId);
 
-      StoredCredential credential = new StoredCredential(
-          credentialId, keyPair, COSEAlgorithmIdentifier.ES256,
-          "example.com", "user" + i, 1, false, null
-      );
+      StoredCredential credential =
+          new StoredCredential(
+              credentialId,
+              keyPair,
+              COSEAlgorithmIdentifier.ES256,
+              "example.com",
+              "user" + i,
+              1,
+              false,
+              null);
 
       store.store(credId, credential);
     }
@@ -151,10 +182,16 @@ class CredentialStoreTest {
     KeyPair keyPair = CryptoUtils.generateKeyPair(COSEAlgorithmIdentifier.ES256);
     byte[] credentialId = CryptoUtils.generateCredentialId();
 
-    StoredCredential credential = new StoredCredential(
-        credentialId, keyPair, COSEAlgorithmIdentifier.ES256,
-        "example.com", "user123", 1, false, null
-    );
+    StoredCredential credential =
+        new StoredCredential(
+            credentialId,
+            keyPair,
+            COSEAlgorithmIdentifier.ES256,
+            "example.com",
+            "user123",
+            1,
+            false,
+            null);
 
     assertThatThrownBy(() -> store.store(null, credential))
         .isInstanceOf(IllegalArgumentException.class)
@@ -177,28 +214,35 @@ class CredentialStoreTest {
 
     for (int t = 0; t < numThreads; t++) {
       final int threadNum = t;
-      executor.submit(() -> {
-        try {
-          for (int i = 0; i < credentialsPerThread; i++) {
-            KeyPair keyPair = CryptoUtils.generateKeyPair(COSEAlgorithmIdentifier.ES256);
-            byte[] credentialId = CryptoUtils.generateCredentialId();
-            String credId = Base64.getUrlEncoder().withoutPadding().encodeToString(credentialId);
+      executor.submit(
+          () -> {
+            try {
+              for (int i = 0; i < credentialsPerThread; i++) {
+                KeyPair keyPair = CryptoUtils.generateKeyPair(COSEAlgorithmIdentifier.ES256);
+                byte[] credentialId = CryptoUtils.generateCredentialId();
+                String credId =
+                    Base64.getUrlEncoder().withoutPadding().encodeToString(credentialId);
 
-            StoredCredential credential = new StoredCredential(
-                credentialId, keyPair, COSEAlgorithmIdentifier.ES256,
-                "example.com", "user" + threadNum + "-" + i,
-                1, false, null
-            );
+                StoredCredential credential =
+                    new StoredCredential(
+                        credentialId,
+                        keyPair,
+                        COSEAlgorithmIdentifier.ES256,
+                        "example.com",
+                        "user" + threadNum + "-" + i,
+                        1,
+                        false,
+                        null);
 
-            store.store(credId, credential);
-            store.retrieve(credId);
-          }
-        } catch (Exception e) {
-          throw new RuntimeException(e);
-        } finally {
-          latch.countDown();
-        }
-      });
+                store.store(credId, credential);
+                store.retrieve(credId);
+              }
+            } catch (Exception e) {
+              throw new RuntimeException(e);
+            } finally {
+              latch.countDown();
+            }
+          });
     }
 
     latch.await(30, TimeUnit.SECONDS);

@@ -38,9 +38,7 @@ public class InMemoryCredentialStore implements CredentialStore {
     if (rpId == null) {
       return java.util.Collections.emptyList();
     }
-    return credentials.values().stream()
-        .filter(cred -> rpId.equals(cred.rpId()))
-        .toList();
+    return credentials.values().stream().filter(cred -> rpId.equals(cred.rpId())).toList();
   }
 
   @Override

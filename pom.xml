@@ -43,6 +43,13 @@
         <maven.compiler.release>21</maven.compiler.release>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>project-local</id>
+            <url>file://${project.basedir}/libs</url>
+        </repository>
+    </repositories>
+
     <dependencies>
         <!-- Lombok -->
         <dependency>

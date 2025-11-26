@@ -1,6 +1,30 @@
 package dev.ethantmcgee.yubiauthn.crypto;
 
-import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.*;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.AAGUID_LENGTH_BYTES;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.CERTIFICATE_VALIDITY_DAYS;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.COSE_CURVE_ED25519;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.COSE_CURVE_P256;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.COSE_CURVE_P384;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.COSE_CURVE_P521;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.COSE_KEY_PARAM_ALG;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.COSE_KEY_PARAM_CRV;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.COSE_KEY_PARAM_E;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.COSE_KEY_PARAM_KTY;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.COSE_KEY_PARAM_N;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.COSE_KEY_PARAM_X;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.COSE_KEY_PARAM_Y;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.COSE_KTY_EC2;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.COSE_KTY_OKP;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.COSE_KTY_RSA;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.CREDENTIAL_ID_LENGTH_BYTES;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.EC_P256_COORDINATE_LENGTH;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.MILLISECONDS_PER_DAY;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.OID_AAGUID;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.OID_DEVICE_IDENTIFIER;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.RSA_KEY_SIZE_BITS;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.U2F_PUBLIC_KEY_LENGTH;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.U2F_RESERVED_BYTE;
+import static dev.ethantmcgee.yubiauthn.crypto.CryptoConstants.UNCOMPRESSED_POINT_INDICATOR;
 
 import com.upokecenter.cbor.CBORObject;
 import dev.ethantmcgee.yubiauthn.exception.CryptographicException;
@@ -12,20 +36,17 @@ import java.nio.ByteBuffer;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
-import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.EdECPublicKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.ECGenParameterSpec;
-import java.security.spec.NamedParameterSpec;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.UUID;
@@ -33,13 +54,11 @@ import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
-import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.X509v3CertificateBuilder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.ContentSigner;
-import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 
 /**
@@ -377,7 +396,8 @@ public class CryptoUtils {
   public static byte[] createAttestedCredentialData(
       byte[] aaguid, byte[] credentialId, byte[] credentialPublicKey) {
     ByteBuffer buffer =
-        ByteBuffer.allocate(AAGUID_LENGTH_BYTES + 2 + credentialId.length + credentialPublicKey.length);
+        ByteBuffer.allocate(
+            AAGUID_LENGTH_BYTES + 2 + credentialId.length + credentialPublicKey.length);
     buffer.put(aaguid);
     buffer.putShort((short) credentialId.length);
     buffer.put(credentialId);
